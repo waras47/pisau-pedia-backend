@@ -7,7 +7,9 @@ type Validator struct {
 }
 
 func New() *Validator {
-	return &Validator{validate: validator.New()}
+	return &Validator{
+		validate: validator.New(),
+	}
 }
 
 func (v *Validator) Validate(i interface{}) error {

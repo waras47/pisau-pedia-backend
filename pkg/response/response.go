@@ -18,13 +18,25 @@ type Meta struct {
 }
 
 func Success(c echo.Context, status int, message string, data interface{}) error {
-	return c.JSON(status, envelope{Success: true, Message: message, Data: data})
+	return c.JSON(status, envelope{
+		Success: true,
+		Message: message,
+		Data:    data,
+	})
 }
 
 func SuccessPaginated(c echo.Context, status int, data interface{}, meta Meta) error {
-	return c.JSON(status, envelope{Success: true, Data: data, Meta: &meta})
+	return c.JSON(status, envelope{
+		Success: true,
+		Data:    data,
+		Meta:    &meta,
+	})
 }
 
 func Error(c echo.Context, status int, message string, errs interface{}) error {
-	return c.JSON(status, envelope{Success: false, Message: message, Errors: errs})
+	return c.JSON(status, envelope{
+		Success: false,
+		Message: message,
+		Errors:  errs,
+	})
 }

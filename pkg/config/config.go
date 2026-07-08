@@ -26,9 +26,9 @@ type DBConfig struct {
 }
 
 type JWTConfig struct {
-	Secret               string
-	AccessExpiryMinutes  int
-	RefreshExpiryHours   int
+	Secret              string
+	AccessExpiryMinutes int
+	RefreshExpiryHours  int
 }
 
 type Config struct {
@@ -41,8 +41,8 @@ type Config struct {
 // insecureDefaultSecrets are placeholder values from .env.example that must
 // never reach a production deployment.
 var insecureDefaultSecrets = map[string]bool{
-	"":                                        true,
-	"change-this-to-a-random-string":          true,
+	"":                               true,
+	"change-this-to-a-random-string": true,
 	"change-this-to-a-random-string-at-least-32-bytes-long": true,
 }
 
