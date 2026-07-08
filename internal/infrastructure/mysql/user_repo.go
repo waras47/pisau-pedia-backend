@@ -6,7 +6,6 @@ import (
 	"errors"
 
 	"github.com/jmoiron/sqlx"
-
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/entity"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/repository"
 )
@@ -19,6 +18,11 @@ func NewUserRepository(db *sqlx.DB) repository.UserRepository {
 	return &userRepository{db: db}
 }
 
+const userColumns = `
+	id, email, password_hash, full_name, phone, role,
+	avatar_url, is_active, email_verified_at, created_at, updated_at
+`
+
 func (r *userRepository) Create(ctx context.Context, user *entity.User) error {
 	query := `
 		INSERT INTO users (id, email, password_hash, full_name, phone, role, avatar_url, is_active)
@@ -30,7 +34,8 @@ func (r *userRepository) Create(ctx context.Context, user *entity.User) error {
 
 func (r *userRepository) FindByEmail(ctx context.Context, email string) (*entity.User, error) {
 	var user entity.User
-	err := r.db.GetContext(ctx, &user, `SELECT * FROM users WHERE email = ?`, email)
+	query := `SELECT ` + userColumns + ` FROM users WHERE email = ?`
+	err := r.db.GetContext(ctx, &user, query, email)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrUserNotFound
 	}
@@ -42,7 +47,8 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*entity
 
 func (r *userRepository) FindByID(ctx context.Context, id string) (*entity.User, error) {
 	var user entity.User
-	err := r.db.GetContext(ctx, &user, `SELECT * FROM users WHERE id = ?`, id)
+	query := `SELECT ` + userColumns + ` FROM users WHERE id = ?`
+	err := r.db.GetContext(ctx, &user, query, id)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrUserNotFound
 	}

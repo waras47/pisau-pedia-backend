@@ -4,10 +4,9 @@ import (
 	"context"
 
 	"github.com/google/uuid"
-	"golang.org/x/crypto/bcrypt"
-
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/entity"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/repository"
+	"golang.org/x/crypto/bcrypt"
 )
 
 type ProfilePatch struct {
@@ -33,7 +32,10 @@ type UserUsecase struct {
 }
 
 func NewUserUsecase(userRepo repository.UserRepository, addressRepo repository.AddressRepository) *UserUsecase {
-	return &UserUsecase{userRepo: userRepo, addressRepo: addressRepo}
+	return &UserUsecase{
+		userRepo:    userRepo,
+		addressRepo: addressRepo,
+	}
 }
 
 func (u *UserUsecase) GetProfile(ctx context.Context, userID string) (*entity.User, error) {

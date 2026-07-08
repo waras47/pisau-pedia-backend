@@ -8,6 +8,7 @@ import (
 
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/delivery/http/handler"
 	appmw "github.com/pisaupediaprojek/pisau-pedia-backend/internal/delivery/http/middleware"
+	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/delivery/http/router"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/infrastructure/mysql"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/usecase"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/config"
@@ -62,34 +63,13 @@ func main() {
 
 	jwtAuth := appmw.JWTAuth(cfg.JWT.Secret)
 
-	v1 := e.Group("/api/v1")
-
-	auth := v1.Group("/auth", appmw.AuthRateLimiter())
-	auth.POST("/register", authHandler.Register)
-	auth.POST("/login", authHandler.Login)
-	auth.POST("/refresh", authHandler.Refresh)
-	auth.POST("/logout", authHandler.Logout, jwtAuth)
-
-	users := v1.Group("/users/me", jwtAuth)
-	users.GET("", userHandler.GetProfile)
-	users.PATCH("", userHandler.UpdateProfile)
-	users.POST("/change-password", userHandler.ChangePassword)
-	users.GET("/addresses", userHandler.ListAddresses)
-	users.POST("/addresses", userHandler.CreateAddress)
-	users.PATCH("/addresses/:id", userHandler.UpdateAddress)
-	users.DELETE("/addresses/:id", userHandler.DeleteAddress)
-
-	v1.GET("/categories", categoryHandler.List)
-	v1.GET("/products", productHandler.List)
-	v1.GET("/products/:slug", productHandler.GetBySlug)
-
-	admin := v1.Group("/admin", jwtAuth, appmw.RequireRole("admin"))
-	admin.POST("/products", productHandler.Create)
-	admin.PATCH("/products/:id", productHandler.Update)
-	admin.DELETE("/products/:id", productHandler.Delete)
-	admin.POST("/categories", categoryHandler.Create)
-	admin.PATCH("/categories/:id", categoryHandler.Update)
-	admin.DELETE("/categories/:id", categoryHandler.Delete)
+	router.Register(e, router.Dependencies{
+		JWTAuth:         jwtAuth,
+		AuthHandler:     authHandler,
+		UserHandler:     userHandler,
+		CategoryHandler: categoryHandler,
+		ProductHandler:  productHandler,
+	})
 
 	log.Info().Str("port", cfg.App.Port).Msg("starting server")
 	if err := e.Start(":" + cfg.App.Port); err != nil && err != http.ErrServerClosed {
