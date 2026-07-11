@@ -2,14 +2,17 @@ package handler
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/labstack/echo/v4"
 
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/delivery/http/dto"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/repository"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/usecase"
+	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/export"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/response"
 )
 
@@ -99,4 +102,60 @@ func (h *ProductHandler) Delete(c echo.Context) error {
 		return response.Error(c, http.StatusInternalServerError, "failed to delete product", nil)
 	}
 	return response.Success(c, http.StatusOK, "Product deleted", nil)
+}
+
+func (h *ProductHandler) GetInventoryReport(c echo.Context) error {
+	report, err := h.productUsecase.GetInventoryReport(c.Request().Context())
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, "failed to build inventory report", nil)
+	}
+	return response.Success(c, http.StatusOK, "OK", dto.ToInventoryReportResponse(report))
+}
+
+func inventoryReportTable(report *usecase.InventoryReportResult) export.Table {
+	table := export.Table{
+		Title:   "Inventory Report",
+		Headers: []string{"Nama Produk", "Kategori", "Stok", "Harga (Rp)", "Nilai Stok (Rp)"},
+	}
+	for _, p := range report.Products {
+		category := "Tanpa Kategori"
+		if p.CategoryName != nil {
+			category = *p.CategoryName
+		}
+		table.Rows = append(table.Rows, []string{
+			p.Name,
+			category,
+			fmt.Sprintf("%d", p.Stock),
+			fmt.Sprintf("%d", p.Price),
+			fmt.Sprintf("%d", p.Price*int64(p.Stock)),
+		})
+	}
+	return table
+}
+
+func (h *ProductHandler) ExportInventoryReport(c echo.Context) error {
+	report, err := h.productUsecase.GetInventoryReport(c.Request().Context())
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, "failed to build inventory report", nil)
+	}
+
+	table := inventoryReportTable(report)
+	filename := fmt.Sprintf("inventory-report-%s", time.Now().Format("2006-01-02"))
+
+	switch c.QueryParam("format") {
+	case "pdf":
+		bytes, err := export.ToPDF(table)
+		if err != nil {
+			return response.Error(c, http.StatusInternalServerError, "failed to generate PDF", nil)
+		}
+		c.Response().Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.pdf"`, filename))
+		return c.Blob(http.StatusOK, "application/pdf", bytes)
+	default:
+		bytes, err := export.ToExcel(table)
+		if err != nil {
+			return response.Error(c, http.StatusInternalServerError, "failed to generate Excel file", nil)
+		}
+		c.Response().Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s.xlsx"`, filename))
+		return c.Blob(http.StatusOK, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bytes)
+	}
 }

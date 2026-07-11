@@ -29,13 +29,109 @@ type AddressInput struct {
 type UserUsecase struct {
 	userRepo    repository.UserRepository
 	addressRepo repository.AddressRepository
+	orderRepo   repository.OrderRepository
 }
 
-func NewUserUsecase(userRepo repository.UserRepository, addressRepo repository.AddressRepository) *UserUsecase {
+func NewUserUsecase(userRepo repository.UserRepository, addressRepo repository.AddressRepository, orderRepo repository.OrderRepository) *UserUsecase {
 	return &UserUsecase{
 		userRepo:    userRepo,
 		addressRepo: addressRepo,
+		orderRepo:   orderRepo,
 	}
+}
+
+type CustomerListInput struct {
+	Page    int
+	PerPage int
+	Search  string
+}
+
+type CustomerWithStats struct {
+	entity.User
+	OrderCount int64
+	TotalSpent int64
+}
+
+type CustomerListResult struct {
+	Customers  []CustomerWithStats
+	Page       int
+	PerPage    int
+	Total      int64
+	TotalPages int64
+}
+
+func (u *UserUsecase) ListCustomers(ctx context.Context, input CustomerListInput) (*CustomerListResult, error) {
+	page := input.Page
+	if page < 1 {
+		page = 1
+	}
+	perPage := input.PerPage
+	if perPage < 1 {
+		perPage = 20
+	}
+	if perPage > 100 {
+		perPage = 100
+	}
+
+	users, total, err := u.userRepo.FindAll(ctx, repository.UserFilter{
+		Page:    page,
+		PerPage: perPage,
+		Role:    string(entity.RoleCustomer),
+		Search:  input.Search,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	emails := make([]string, len(users))
+	for i, user := range users {
+		emails[i] = user.Email
+	}
+	statsByEmail, err := u.orderRepo.GetCustomerStatsBulk(ctx, emails)
+	if err != nil {
+		return nil, err
+	}
+
+	customers := make([]CustomerWithStats, 0, len(users))
+	for _, user := range users {
+		stats := statsByEmail[user.Email]
+		customers = append(customers, CustomerWithStats{User: user, OrderCount: stats.OrderCount, TotalSpent: stats.TotalSpent})
+	}
+
+	totalPages := total / int64(perPage)
+	if total%int64(perPage) != 0 {
+		totalPages++
+	}
+
+	return &CustomerListResult{Customers: customers, Page: page, PerPage: perPage, Total: total, TotalPages: totalPages}, nil
+}
+
+func (u *UserUsecase) GetCustomer(ctx context.Context, id string) (*CustomerWithStats, error) {
+	user, err := u.userRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	orderCount, totalSpent, err := u.orderRepo.GetCustomerStats(ctx, user.Email)
+	if err != nil {
+		return nil, err
+	}
+	return &CustomerWithStats{User: *user, OrderCount: orderCount, TotalSpent: totalSpent}, nil
+}
+
+func (u *UserUsecase) ListCustomerAddresses(ctx context.Context, userID string) ([]entity.Address, error) {
+	return u.addressRepo.FindByUserID(ctx, userID)
+}
+
+func (u *UserUsecase) UpdateCustomerStatus(ctx context.Context, id string, isActive bool) (*entity.User, error) {
+	user, err := u.userRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	user.IsActive = isActive
+	if err := u.userRepo.Update(ctx, user); err != nil {
+		return nil, err
+	}
+	return user, nil
 }
 
 func (u *UserUsecase) GetProfile(ctx context.Context, userID string) (*entity.User, error) {

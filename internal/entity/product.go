@@ -23,6 +23,7 @@ type Product struct {
 	Maker          *string   `db:"maker"`
 	Badge          *Badge    `db:"badge"`
 	Stock          uint      `db:"stock"`
+	Weight         uint      `db:"weight"`
 	RatingAvg      float64   `db:"rating_avg"`
 	ReviewCount    uint      `db:"review_count"`
 	IsActive       bool      `db:"is_active"`
@@ -34,14 +35,19 @@ type Product struct {
 	Images     []ProductImage     `db:"-"`
 	Specs      []ProductSpec      `db:"-"`
 	Highlights []ProductHighlight `db:"-"`
+
+	// Image is the first product image, populated separately by listing
+	// queries (single batched query, not a join) so the list view has a
+	// thumbnail without pulling the full Images/Specs/Highlights payload.
+	Image *string `db:"-"`
 }
 
 type ProductImage struct {
-	ID        string `db:"id"`
-	ProductID string `db:"product_id"`
-	URL       string `db:"url"`
+	ID        string  `db:"id"`
+	ProductID string  `db:"product_id"`
+	URL       string  `db:"url"`
 	AltText   *string `db:"alt_text"`
-	SortOrder uint   `db:"sort_order"`
+	SortOrder uint    `db:"sort_order"`
 }
 
 type ProductSpec struct {

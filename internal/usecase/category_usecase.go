@@ -28,6 +28,10 @@ func (u *CategoryUsecase) ListCategories(ctx context.Context) ([]entity.Category
 	return u.categoryRepo.FindAll(ctx)
 }
 
+func (u *CategoryUsecase) GetCategoryBySlug(ctx context.Context, slug string) (*entity.Category, error) {
+	return u.categoryRepo.FindBySlug(ctx, slug)
+}
+
 func (u *CategoryUsecase) CreateCategory(ctx context.Context, input CategoryInput) (*entity.Category, error) {
 	base := input.Slug
 	if base == "" {

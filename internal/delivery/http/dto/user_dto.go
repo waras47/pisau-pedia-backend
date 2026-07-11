@@ -88,3 +88,42 @@ func ToAddressResponses(addresses []entity.Address) []AddressResponse {
 	}
 	return out
 }
+
+type UpdateCustomerStatusRequest struct {
+	IsActive bool `json:"is_active"`
+}
+
+type CustomerResponse struct {
+	ID         string `json:"id"`
+	FullName   string `json:"full_name"`
+	Email      string `json:"email"`
+	Phone      string `json:"phone,omitempty"`
+	IsActive   bool   `json:"is_active"`
+	OrderCount int64  `json:"order_count"`
+	TotalSpent int64  `json:"total_spent"`
+	CreatedAt  string `json:"created_at"`
+}
+
+func ToCustomerResponse(c *usecase.CustomerWithStats) CustomerResponse {
+	resp := CustomerResponse{
+		ID:         c.User.ID,
+		FullName:   c.User.FullName,
+		Email:      c.User.Email,
+		IsActive:   c.User.IsActive,
+		OrderCount: c.OrderCount,
+		TotalSpent: c.TotalSpent,
+		CreatedAt:  c.User.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+	}
+	if c.User.Phone != nil {
+		resp.Phone = *c.User.Phone
+	}
+	return resp
+}
+
+func ToCustomerResponses(customers []usecase.CustomerWithStats) []CustomerResponse {
+	out := make([]CustomerResponse, 0, len(customers))
+	for i := range customers {
+		out = append(out, ToCustomerResponse(&customers[i]))
+	}
+	return out
+}

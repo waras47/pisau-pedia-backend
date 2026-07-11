@@ -31,13 +31,14 @@ type TokenPair struct {
 }
 
 type AuthUsecase struct {
-	userRepo         repository.UserRepository
-	refreshTokenRepo repository.RefreshTokenRepository
-	jwtCfg           config.JWTConfig
+	userRepo            repository.UserRepository
+	refreshTokenRepo    repository.RefreshTokenRepository
+	jwtCfg              config.JWTConfig
+	notificationUsecase *NotificationUsecase
 }
 
-func NewAuthUsecase(userRepo repository.UserRepository, refreshTokenRepo repository.RefreshTokenRepository, jwtCfg config.JWTConfig) *AuthUsecase {
-	return &AuthUsecase{userRepo: userRepo, refreshTokenRepo: refreshTokenRepo, jwtCfg: jwtCfg}
+func NewAuthUsecase(userRepo repository.UserRepository, refreshTokenRepo repository.RefreshTokenRepository, jwtCfg config.JWTConfig, notificationUsecase *NotificationUsecase) *AuthUsecase {
+	return &AuthUsecase{userRepo: userRepo, refreshTokenRepo: refreshTokenRepo, jwtCfg: jwtCfg, notificationUsecase: notificationUsecase}
 }
 
 func (u *AuthUsecase) Register(ctx context.Context, email, password, fullName, phone string) (*entity.User, *TokenPair, error) {
@@ -71,6 +72,9 @@ func (u *AuthUsecase) Register(ctx context.Context, email, password, fullName, p
 	if err := u.userRepo.Create(ctx, user); err != nil {
 		return nil, nil, err
 	}
+
+	// Notification failures shouldn't block registration.
+	_ = u.notificationUsecase.NotifyCustomerRegistered(ctx, user)
 
 	tokens, err := u.generateTokenPair(ctx, user)
 	if err != nil {

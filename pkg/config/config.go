@@ -31,10 +31,27 @@ type JWTConfig struct {
 	RefreshExpiryHours  int
 }
 
+type MinioConfig struct {
+	Endpoint  string
+	AccessKey string
+	SecretKey string
+	Bucket    string
+	UseSSL    bool
+	PublicURL string
+}
+
+type RajaOngkirConfig struct {
+	BaseURL  string
+	APIKey   string
+	OriginID string
+}
+
 type Config struct {
 	App         AppConfig
 	DB          DBConfig
 	JWT         JWTConfig
+	Minio       MinioConfig
+	RajaOngkir  RajaOngkirConfig
 	FrontendURL string
 }
 
@@ -80,6 +97,19 @@ func Load() (*Config, error) {
 			Secret:              v.GetString("JWT_SECRET"),
 			AccessExpiryMinutes: v.GetInt("JWT_ACCESS_EXPIRY_MINUTES"),
 			RefreshExpiryHours:  v.GetInt("JWT_REFRESH_EXPIRY_HOURS"),
+		},
+		Minio: MinioConfig{
+			Endpoint:  v.GetString("MINIO_ENDPOINT"),
+			AccessKey: v.GetString("MINIO_ACCESS_KEY"),
+			SecretKey: v.GetString("MINIO_SECRET_KEY"),
+			Bucket:    v.GetString("MINIO_BUCKET"),
+			UseSSL:    v.GetBool("MINIO_USE_SSL"),
+			PublicURL: v.GetString("MINIO_PUBLIC_URL"),
+		},
+		RajaOngkir: RajaOngkirConfig{
+			BaseURL:  v.GetString("RAJAONGKIR_BASE_URL"),
+			APIKey:   v.GetString("RAJAONGKIR_API_KEY"),
+			OriginID: v.GetString("RAJAONGKIR_ORIGIN_ID"),
 		},
 		FrontendURL: v.GetString("FRONTEND_URL"),
 	}

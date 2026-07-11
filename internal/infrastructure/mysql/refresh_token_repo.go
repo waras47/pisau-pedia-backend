@@ -20,7 +20,7 @@ func NewRefreshTokenRepository(db *sqlx.DB) repository.RefreshTokenRepository {
 
 func (r *refreshTokenRepository) Create(ctx context.Context, token *entity.RefreshToken) error {
 	query :=
-		`INSERT INTO refresh_token(
+		`INSERT INTO refresh_tokens(
 			id, 
 			user_id, 
 			token_hash, 
@@ -49,7 +49,7 @@ func (r *refreshTokenRepository) FindByTokenHash(ctx context.Context, tokenHash 
 			revoked_at, 
 			created_at, 
 			updated_at 
-	    FROM refresh_token 
+	    FROM refresh_tokens
 		WHERE token_hash = ?
 	   `
 
@@ -63,7 +63,7 @@ func (r *refreshTokenRepository) FindByTokenHash(ctx context.Context, tokenHash 
 
 func (r *refreshTokenRepository) Revoke(ctx context.Context, id string) error {
 	query := `
-		UPDATE refresh_token
+		UPDATE refresh_tokens
 		SET revoked_at = ?
 		WHERE id = ?
 	`
@@ -73,9 +73,9 @@ func (r *refreshTokenRepository) Revoke(ctx context.Context, id string) error {
 
 func (r *refreshTokenRepository) RevokeAllForUser(ctx context.Context, userID string) error {
 	query := `
-		UPDATE refresh_token
+		UPDATE refresh_tokens
 		SET revoked_at = ?
-		WHERE id = ?
+		WHERE user_id = ?
 	`
 	_, err := r.db.ExecContext(ctx, query, time.Now(), userID)
 	return err

@@ -47,6 +47,8 @@ func sortClause(sort string) string {
 		return "p.price DESC"
 	case "newest":
 		return "p.created_at DESC"
+	case "rating":
+		return "p.rating_avg DESC, p.review_count DESC"
 	default:
 		return "p.created_at DESC"
 	}
@@ -84,7 +86,58 @@ func (r *productRepository) FindAll(ctx context.Context, filter repository.Produ
 		return nil, 0, err
 	}
 
+	if err := r.attachPrimaryImages(ctx, products); err != nil {
+		return nil, 0, err
+	}
+
 	return products, total, nil
+}
+
+// attachPrimaryImages fetches the first image per product in a single
+// batched query (window function, not a join) and sets Product.Image —
+// enough for list-view thumbnails without pulling the full Images payload.
+func (r *productRepository) attachPrimaryImages(ctx context.Context, products []entity.Product) error {
+	if len(products) == 0 {
+		return nil
+	}
+
+	ids := make([]string, len(products))
+	for i, p := range products {
+		ids[i] = p.ID
+	}
+
+	query, args, err := sqlx.In(`
+		SELECT product_id, url FROM (
+			SELECT product_id, url,
+				ROW_NUMBER() OVER (PARTITION BY product_id ORDER BY sort_order) AS rn
+			FROM product_images
+			WHERE product_id IN (?)
+		) ranked
+		WHERE rn = 1
+	`, ids)
+	if err != nil {
+		return err
+	}
+	query = r.db.Rebind(query)
+
+	var rows []struct {
+		ProductID string `db:"product_id"`
+		URL       string `db:"url"`
+	}
+	if err := r.db.SelectContext(ctx, &rows, query, args...); err != nil {
+		return err
+	}
+
+	imageByProduct := make(map[string]string, len(rows))
+	for _, row := range rows {
+		imageByProduct[row.ProductID] = row.URL
+	}
+	for i := range products {
+		if url, ok := imageByProduct[products[i].ID]; ok {
+			products[i].Image = &url
+		}
+	}
+	return nil
 }
 
 func (r *productRepository) FindBySlug(ctx context.Context, slug string) (*entity.Product, error) {
@@ -159,8 +212,8 @@ func (r *productRepository) Create(ctx context.Context, product *entity.Product)
 	defer tx.Rollback()
 
 	_, err = tx.NamedExecContext(ctx, `
-		INSERT INTO products (id, category_id, name, slug, description, price, compare_at_price, currency, maker, badge, stock, is_active)
-		VALUES (:id, :category_id, :name, :slug, :description, :price, :compare_at_price, :currency, :maker, :badge, :stock, :is_active)
+		INSERT INTO products (id, category_id, name, slug, description, price, compare_at_price, currency, maker, badge, stock, weight, is_active)
+		VALUES (:id, :category_id, :name, :slug, :description, :price, :compare_at_price, :currency, :maker, :badge, :stock, :weight, :is_active)
 	`, product)
 	if err != nil {
 		return err
@@ -203,7 +256,13 @@ func (r *productRepository) Create(ctx context.Context, product *entity.Product)
 }
 
 func (r *productRepository) Update(ctx context.Context, product *entity.Product) error {
-	query := `
+	tx, err := r.db.BeginTxx(ctx, nil)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	_, err = tx.NamedExecContext(ctx, `
 		UPDATE products SET
 			category_id = :category_id,
 			name = :name,
@@ -213,14 +272,107 @@ func (r *productRepository) Update(ctx context.Context, product *entity.Product)
 			maker = :maker,
 			badge = :badge,
 			stock = :stock,
+			weight = :weight,
 			is_active = :is_active
 		WHERE id = :id
-	`
-	_, err := r.db.NamedExecContext(ctx, query, product)
-	return err
+	`, product)
+	if err != nil {
+		return err
+	}
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM product_images WHERE product_id = ?`, product.ID); err != nil {
+		return err
+	}
+	for i := range product.Images {
+		product.Images[i].ProductID = product.ID
+		product.Images[i].SortOrder = uint(i)
+		if _, err := tx.NamedExecContext(ctx, `
+			INSERT INTO product_images (id, product_id, url, alt_text, sort_order)
+			VALUES (:id, :product_id, :url, :alt_text, :sort_order)
+		`, product.Images[i]); err != nil {
+			return err
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM product_specs WHERE product_id = ?`, product.ID); err != nil {
+		return err
+	}
+	for i := range product.Specs {
+		product.Specs[i].ProductID = product.ID
+		product.Specs[i].SortOrder = uint(i)
+		if _, err := tx.NamedExecContext(ctx, `
+			INSERT INTO product_specs (id, product_id, label, value, sort_order)
+			VALUES (:id, :product_id, :label, :value, :sort_order)
+		`, product.Specs[i]); err != nil {
+			return err
+		}
+	}
+
+	if _, err := tx.ExecContext(ctx, `DELETE FROM product_highlights WHERE product_id = ?`, product.ID); err != nil {
+		return err
+	}
+	for i := range product.Highlights {
+		product.Highlights[i].ProductID = product.ID
+		product.Highlights[i].SortOrder = uint(i)
+		if _, err := tx.NamedExecContext(ctx, `
+			INSERT INTO product_highlights (id, product_id, highlight, sort_order)
+			VALUES (:id, :product_id, :highlight, :sort_order)
+		`, product.Highlights[i]); err != nil {
+			return err
+		}
+	}
+	return tx.Commit()
 }
 
 func (r *productRepository) Delete(ctx context.Context, id string) error {
 	_, err := r.db.ExecContext(ctx, `DELETE FROM products WHERE id = ?`, id)
+	return err
+}
+
+func (r *productRepository) GetInventorySummary(ctx context.Context, lowStockThreshold uint) (*repository.InventorySummary, error) {
+	summary := &repository.InventorySummary{}
+
+	if err := r.db.GetContext(ctx, &summary.TotalProducts, `SELECT COUNT(*) FROM products WHERE is_active = 1`); err != nil {
+		return nil, err
+	}
+
+	if err := r.db.GetContext(ctx, &summary.TotalStockValue, `
+		SELECT COALESCE(SUM(price * stock), 0) FROM products WHERE is_active = 1
+	`); err != nil {
+		return nil, err
+	}
+
+	if err := r.db.GetContext(ctx, &summary.LowStockCount, `
+		SELECT COUNT(*) FROM products WHERE is_active = 1 AND stock > 0 AND stock <= ?
+	`, lowStockThreshold); err != nil {
+		return nil, err
+	}
+
+	if err := r.db.GetContext(ctx, &summary.OutOfStockCount, `
+		SELECT COUNT(*) FROM products WHERE is_active = 1 AND stock = 0
+	`); err != nil {
+		return nil, err
+	}
+
+	if err := r.db.SelectContext(ctx, &summary.CategoryBreakdown, `
+		SELECT COALESCE(c.name, 'Tanpa Kategori') AS category_name,
+			COUNT(*) AS product_count,
+			COALESCE(SUM(p.stock), 0) AS total_stock
+		FROM products p
+		LEFT JOIN categories c ON c.id = p.category_id
+		WHERE p.is_active = 1
+		GROUP BY category_name
+		ORDER BY category_name
+	`); err != nil {
+		return nil, err
+	}
+
+	return summary, nil
+}
+
+func (r *productRepository) UpdateRatingStats(ctx context.Context, productID string, ratingAvg float64, reviewCount uint) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE products SET rating_avg = ?, review_count = ? WHERE id = ?
+	`, ratingAvg, reviewCount, productID)
 	return err
 }

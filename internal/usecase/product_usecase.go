@@ -45,6 +45,7 @@ type ProductInput struct {
 	Maker          *string
 	Badge          *entity.Badge
 	Stock          *uint
+	Weight         *uint
 	IsActive       *bool
 	Images         []string
 	Specs          []ProductSpecInput
@@ -52,12 +53,13 @@ type ProductInput struct {
 }
 
 type ProductUsecase struct {
-	productRepo  repository.ProductRepository
-	categoryRepo repository.CategoryRepository
+	productRepo         repository.ProductRepository
+	categoryRepo        repository.CategoryRepository
+	notificationUsecase *NotificationUsecase
 }
 
-func NewProductUsecase(productRepo repository.ProductRepository, categoryRepo repository.CategoryRepository) *ProductUsecase {
-	return &ProductUsecase{productRepo: productRepo, categoryRepo: categoryRepo}
+func NewProductUsecase(productRepo repository.ProductRepository, categoryRepo repository.CategoryRepository, notificationUsecase *NotificationUsecase) *ProductUsecase {
+	return &ProductUsecase{productRepo: productRepo, categoryRepo: categoryRepo, notificationUsecase: notificationUsecase}
 }
 
 func (u *ProductUsecase) ListProducts(ctx context.Context, input ProductListInput) (*ProductListResult, error) {
@@ -140,6 +142,10 @@ func (u *ProductUsecase) CreateProduct(ctx context.Context, input ProductInput) 
 	if input.Stock != nil {
 		product.Stock = *input.Stock
 	}
+	product.Weight = 500
+	if input.Weight != nil {
+		product.Weight = *input.Weight
+	}
 	if input.IsActive != nil {
 		product.IsActive = *input.IsActive
 	}
@@ -157,6 +163,10 @@ func (u *ProductUsecase) CreateProduct(ctx context.Context, input ProductInput) 
 	if err := u.productRepo.Create(ctx, product); err != nil {
 		return nil, err
 	}
+
+	// Notification failures shouldn't block product creation.
+	_ = u.notificationUsecase.NotifyProductCreated(ctx, product)
+
 	return product, nil
 }
 
@@ -165,6 +175,7 @@ func (u *ProductUsecase) UpdateProduct(ctx context.Context, id string, input Pro
 	if err != nil {
 		return nil, err
 	}
+	oldStock := product.Stock
 
 	if input.Name != "" {
 		product.Name = input.Name
@@ -193,16 +204,76 @@ func (u *ProductUsecase) UpdateProduct(ctx context.Context, id string, input Pro
 	if input.Stock != nil {
 		product.Stock = *input.Stock
 	}
+	if input.Weight != nil {
+		product.Weight = *input.Weight
+	}
 
+	if input.Images != nil {
+		product.Images = nil
+		for _, url := range input.Images {
+			product.Images = append(product.Images, entity.ProductImage{ID: uuid.New().String(), URL: url})
+		}
+	}
+	if input.Specs != nil {
+		product.Specs = nil
+		for _, s := range input.Specs {
+			product.Specs = append(product.Specs, entity.ProductSpec{ID: uuid.New().String(), Label: s.Label, Value: s.Value})
+		}
+	}
+	if input.Highlights != nil {
+		product.Highlights = nil
+		for _, h := range input.Highlights {
+			product.Highlights = append(product.Highlights, entity.ProductHighlight{ID: uuid.New().String(), Highlight: h})
+		}
+	}
 	if err := u.productRepo.Update(ctx, product); err != nil {
 		return nil, err
 	}
+
+	// Fire only when stock just crossed into the low-stock zone, not on
+	// every subsequent edit while it stays there — avoids notification spam.
+	if input.Stock != nil && product.Stock <= lowStockThreshold && oldStock > lowStockThreshold {
+		_ = u.notificationUsecase.NotifyProductLowStock(ctx, product)
+	}
+
 	return product, nil
 }
 
 func (u *ProductUsecase) DeleteProduct(ctx context.Context, id string) error {
-	if _, err := u.productRepo.FindByID(ctx, id); err != nil {
+	product, err := u.productRepo.FindByID(ctx, id)
+	if err != nil {
 		return err
 	}
-	return u.productRepo.Delete(ctx, id)
+	if err := u.productRepo.Delete(ctx, id); err != nil {
+		return err
+	}
+
+	// Notification failures shouldn't block product deletion.
+	_ = u.notificationUsecase.NotifyProductDeleted(ctx, product)
+
+	return nil
+}
+
+// lowStockThreshold matches the threshold planned for the low-stock alert
+// feature (see docs) — kept in one place so both eventually agree on what
+// "menipis" means.
+const lowStockThreshold = 5
+
+type InventoryReportResult struct {
+	Summary  *repository.InventorySummary
+	Products []entity.Product
+}
+
+func (u *ProductUsecase) GetInventoryReport(ctx context.Context) (*InventoryReportResult, error) {
+	summary, err := u.productRepo.GetInventorySummary(ctx, lowStockThreshold)
+	if err != nil {
+		return nil, err
+	}
+
+	products, _, err := u.productRepo.FindAll(ctx, repository.ProductFilter{Page: 1, PerPage: 10000})
+	if err != nil {
+		return nil, err
+	}
+
+	return &InventoryReportResult{Summary: summary, Products: products}, nil
 }

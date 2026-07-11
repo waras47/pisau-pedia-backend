@@ -3,6 +3,7 @@ package handler
 import (
 	"errors"
 	"net/http"
+	"strconv"
 
 	"github.com/labstack/echo/v4"
 
@@ -115,6 +116,62 @@ func (h *UserHandler) DeleteAddress(c echo.Context) error {
 		return addressErrorResponse(c, err)
 	}
 	return response.Success(c, http.StatusOK, "Address deleted", nil)
+}
+
+func (h *UserHandler) ListCustomers(c echo.Context) error {
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	perPage, _ := strconv.Atoi(c.QueryParam("per_page"))
+
+	result, err := h.userUsecase.ListCustomers(c.Request().Context(), usecase.CustomerListInput{
+		Page:    page,
+		PerPage: perPage,
+		Search:  c.QueryParam("search"),
+	})
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, "failed to list customers", nil)
+	}
+
+	return response.SuccessPaginated(c, http.StatusOK, dto.ToCustomerResponses(result.Customers), response.Meta{
+		Page:       result.Page,
+		PerPage:    result.PerPage,
+		Total:      result.Total,
+		TotalPages: result.TotalPages,
+	})
+}
+
+func (h *UserHandler) GetCustomer(c echo.Context) error {
+	customer, err := h.userUsecase.GetCustomer(c.Request().Context(), c.Param("id"))
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return response.Error(c, http.StatusNotFound, "customer not found", nil)
+		}
+		return response.Error(c, http.StatusInternalServerError, "failed to get customer", nil)
+	}
+	return response.Success(c, http.StatusOK, "OK", dto.ToCustomerResponse(customer))
+}
+
+func (h *UserHandler) GetCustomerAddresses(c echo.Context) error {
+	addresses, err := h.userUsecase.ListCustomerAddresses(c.Request().Context(), c.Param("id"))
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, "failed to list customer addresses", nil)
+	}
+	return response.Success(c, http.StatusOK, "OK", dto.ToAddressResponses(addresses))
+}
+
+func (h *UserHandler) UpdateCustomerStatus(c echo.Context) error {
+	var req dto.UpdateCustomerStatusRequest
+	if err := c.Bind(&req); err != nil {
+		return response.Error(c, http.StatusBadRequest, "invalid request body", nil)
+	}
+
+	user, err := h.userUsecase.UpdateCustomerStatus(c.Request().Context(), c.Param("id"), req.IsActive)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return response.Error(c, http.StatusNotFound, "customer not found", nil)
+		}
+		return response.Error(c, http.StatusInternalServerError, "failed to update customer status", nil)
+	}
+	return response.Success(c, http.StatusOK, "Customer status updated", dto.ToUserResponse(user))
 }
 
 func addressErrorResponse(c echo.Context, err error) error {

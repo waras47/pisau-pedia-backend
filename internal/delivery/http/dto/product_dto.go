@@ -20,21 +20,26 @@ type CreateProductRequest struct {
 	Maker          *string              `json:"maker"`
 	Badge          *string              `json:"badge" validate:"omitempty,oneof=new sale sold-out"`
 	Stock          *uint                `json:"stock" validate:"omitempty,min=0"`
+	Weight         *uint                `json:"weight" validate:"omitempty,min=0"`
 	Images         []string             `json:"images" validate:"omitempty,dive,url"`
 	Specs          []ProductSpecRequest `json:"specs" validate:"omitempty,dive"`
 	Highlights     []string             `json:"highlights" validate:"omitempty,dive,required"`
 }
 
 type UpdateProductRequest struct {
-	CategoryID     *string `json:"category_id" validate:"omitempty,uuid"`
-	Name           string  `json:"name" validate:"omitempty,min=2"`
-	Description    *string `json:"description"`
-	Price          int64   `json:"price" validate:"omitempty,min=0"`
-	CompareAtPrice *int64  `json:"compare_at_price" validate:"omitempty,min=0"`
-	Maker          *string `json:"maker"`
-	Badge          *string `json:"badge" validate:"omitempty,oneof=new sale sold-out"`
-	Stock          *uint   `json:"stock" validate:"omitempty,min=0"`
-	IsActive       *bool   `json:"is_active"`
+	CategoryID     *string              `json:"category_id" validate:"omitempty,uuid"`
+	Name           string               `json:"name" validate:"omitempty,min=2"`
+	Description    *string              `json:"description"`
+	Price          int64                `json:"price" validate:"omitempty,min=0"`
+	CompareAtPrice *int64               `json:"compare_at_price" validate:"omitempty,min=0"`
+	Maker          *string              `json:"maker"`
+	Badge          *string              `json:"badge" validate:"omitempty,oneof=new sale sold-out"`
+	Stock          *uint                `json:"stock" validate:"omitempty,min=0"`
+	Weight         *uint                `json:"weight" validate:"omitempty,min=0"`
+	IsActive       *bool                `json:"is_active"`
+	Images         []string             `json:"images" validate:"omitempty,dive,url"`
+	Specs          []ProductSpecRequest `json:"specs" validate:"omitempty,dive"`
+	Highlights     []string             `json:"highlights" validate:"omitempty,dive,required"`
 }
 
 func (r CreateProductRequest) ToInput() usecase.ProductInput {
@@ -47,6 +52,7 @@ func (r CreateProductRequest) ToInput() usecase.ProductInput {
 		CompareAtPrice: r.CompareAtPrice,
 		Maker:          r.Maker,
 		Stock:          r.Stock,
+		Weight:         r.Weight,
 		Images:         r.Images,
 		Highlights:     r.Highlights,
 	}
@@ -69,11 +75,17 @@ func (r UpdateProductRequest) ToInput() usecase.ProductInput {
 		CompareAtPrice: r.CompareAtPrice,
 		Maker:          r.Maker,
 		Stock:          r.Stock,
+		Weight:         r.Weight,
 		IsActive:       r.IsActive,
+		Images:         r.Images,
+		Highlights:     r.Highlights,
 	}
 	if r.Badge != nil {
 		badge := entity.Badge(*r.Badge)
 		input.Badge = &badge
+	}
+	for _, s := range r.Specs {
+		input.Specs = append(input.Specs, usecase.ProductSpecInput{Label: s.Label, Value: s.Value})
 	}
 	return input
 }
@@ -89,16 +101,18 @@ type ProductListItemResponse struct {
 	Badge          string  `json:"badge,omitempty"`
 	Category       string  `json:"category,omitempty"`
 	Stock          uint    `json:"stock"`
+	Weight         uint    `json:"weight"`
 	RatingAvg      float64 `json:"rating"`
 	ReviewCount    uint    `json:"review_count"`
+	Image          string  `json:"image,omitempty"`
 }
 
 type ProductDetailResponse struct {
 	ProductListItemResponse
-	Description string   `json:"description,omitempty"`
-	Images      []string `json:"images"`
+	Description string               `json:"description,omitempty"`
+	Images      []string             `json:"images"`
 	Specs       []ProductSpecRequest `json:"specs"`
-	Highlights  []string `json:"highlights"`
+	Highlights  []string             `json:"highlights"`
 }
 
 func toProductListItem(p *entity.Product) ProductListItemResponse {
@@ -110,8 +124,12 @@ func toProductListItem(p *entity.Product) ProductListItemResponse {
 		CompareAtPrice: p.CompareAtPrice,
 		Currency:       p.Currency,
 		Stock:          p.Stock,
+		Weight:         p.Weight,
 		RatingAvg:      p.RatingAvg,
 		ReviewCount:    p.ReviewCount,
+	}
+	if p.Image != nil {
+		resp.Image = *p.Image
 	}
 	if p.Maker != nil {
 		resp.Maker = *p.Maker
@@ -154,5 +172,36 @@ func ToProductDetailResponse(p *entity.Product) ProductDetailResponse {
 		resp.Highlights = append(resp.Highlights, h.Highlight)
 	}
 
+	return resp
+}
+
+type CategoryStockResponse struct {
+	CategoryName string `json:"category_name"`
+	ProductCount int64  `json:"product_count"`
+	TotalStock   int64  `json:"total_stock"`
+}
+
+type InventoryReportResponse struct {
+	TotalProducts     int64                   `json:"total_products"`
+	TotalStockValue   int64                   `json:"total_stock_value"`
+	LowStockCount     int64                   `json:"low_stock_count"`
+	OutOfStockCount   int64                   `json:"out_of_stock_count"`
+	CategoryBreakdown []CategoryStockResponse `json:"category_breakdown"`
+}
+
+func ToInventoryReportResponse(r *usecase.InventoryReportResult) InventoryReportResponse {
+	resp := InventoryReportResponse{
+		TotalProducts:   r.Summary.TotalProducts,
+		TotalStockValue: r.Summary.TotalStockValue,
+		LowStockCount:   r.Summary.LowStockCount,
+		OutOfStockCount: r.Summary.OutOfStockCount,
+	}
+	for _, c := range r.Summary.CategoryBreakdown {
+		resp.CategoryBreakdown = append(resp.CategoryBreakdown, CategoryStockResponse{
+			CategoryName: c.CategoryName,
+			ProductCount: c.ProductCount,
+			TotalStock:   c.TotalStock,
+		})
+	}
 	return resp
 }

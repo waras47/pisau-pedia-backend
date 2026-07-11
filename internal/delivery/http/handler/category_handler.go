@@ -28,6 +28,17 @@ func (h *CategoryHandler) List(c echo.Context) error {
 	return response.Success(c, http.StatusOK, "OK", dto.ToCategoryResponses(categories))
 }
 
+func (h *CategoryHandler) GetBySlug(c echo.Context) error {
+	category, err := h.categoryUsecase.GetCategoryBySlug(c.Request().Context(), c.Param("slug"))
+	if err != nil {
+		if errors.Is(err, repository.ErrCategoryNotFound) {
+			return response.Error(c, http.StatusNotFound, "category not found", nil)
+		}
+		return response.Error(c, http.StatusInternalServerError, "failed to get category", nil)
+	}
+	return response.Success(c, http.StatusOK, "OK", dto.ToCategoryResponse(category))
+}
+
 func (h *CategoryHandler) Create(c echo.Context) error {
 	var req dto.CreateCategoryRequest
 	if err := c.Bind(&req); err != nil {
