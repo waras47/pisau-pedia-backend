@@ -62,6 +62,11 @@ Baca berurutan sesuai nomor file di `docs/`:
 | 06 | [observability-prometheus-grafana.md](docs/06-observability-prometheus-grafana.md) | Instrumentasi metrics & dashboard |
 | 07 | [docker-and-deployment.md](docs/07-docker-and-deployment.md) | Dockerfile, docker-compose, Makefile |
 | 08 | [roadmap-checklist.md](docs/08-roadmap-checklist.md) | Checklist bertahap + apa yang belum di-scope |
+| 09 | [integrasi-admin-panel-dan-dev-lokal.md](docs/09-integrasi-admin-panel-dan-dev-lokal.md) | Sambungkan admin panel frontend ke backend, setup dev lokal, bug yang ditemukan |
+| 10 | [i18n-dan-currency-storefront.md](docs/10-i18n-dan-currency-storefront.md) | i18n EN/ID & currency storefront |
+| 11 | [orders-reports-excel-pdf.md](docs/11-orders-reports-excel-pdf.md) | Modul Order (checkout, admin) + Sales/Inventory Report (export Excel/PDF) |
+| 12 | [perbaikan-newsletter-customer-admin.md](docs/12-perbaikan-newsletter-customer-admin.md) | Perbaikan admin panel Newsletter (pagination/filter) & Customer (modal detail), fix N+1 query & bug kolom `role` |
+| 13 | [notifikasi-aktivitas-admin.md](docs/13-notifikasi-aktivitas-admin.md) | Sistem notifikasi admin (polling) untuk modul Product, Service, Order, Customer |
 
 ## Prinsip yang dipegang
 

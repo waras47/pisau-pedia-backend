@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	mysqldriver "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/entity"
@@ -88,6 +89,23 @@ func (r *orderRepository) FindByID(ctx context.Context, id string) (*entity.Orde
 	return &order, nil
 }
 
+func (r *orderRepository) FindByIdempotencyKey(ctx context.Context, key string) (*entity.Order, error) {
+	var order entity.Order
+	if err := r.db.GetContext(ctx, &order, `SELECT * FROM orders WHERE idempotency_key = ?`, key); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, repository.ErrOrderNotFound
+		}
+		return nil, err
+	}
+
+	if err := r.db.SelectContext(ctx, &order.Items,
+		`SELECT * FROM order_items WHERE order_id = ?`, order.ID); err != nil {
+		return nil, err
+	}
+
+	return &order, nil
+}
+
 func (r *orderRepository) Create(ctx context.Context, order *entity.Order) error {
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -97,14 +115,18 @@ func (r *orderRepository) Create(ctx context.Context, order *entity.Order) error
 
 	_, err = tx.NamedExecContext(ctx, `
 		INSERT INTO orders (
-			id, user_id, status, payment_status,
+			id, idempotency_key, user_id, status, payment_status,
+			payment_provider, payment_id, payment_type, payment_channel,
+			payment_va_number, payment_qr_string, payment_url, payment_expiry,
 			customer_name, customer_email, customer_phone,
 			shipping_address, shipping_city, shipping_province, shipping_postal_code,
 			subtotal, total, currency, coupon_code, discount_amount,
 			shipping_cost, shipping_courier, shipping_service, shipping_etd, destination_id,
 			xendit_external_id, xendit_invoice_url
 		) VALUES (
-			:id, :user_id, :status, :payment_status,
+			:id, :idempotency_key, :user_id, :status, :payment_status,
+			:payment_provider, :payment_id, :payment_type, :payment_channel,
+			:payment_va_number, :payment_qr_string, :payment_url, :payment_expiry,
 			:customer_name, :customer_email, :customer_phone,
 			:shipping_address, :shipping_city, :shipping_province, :shipping_postal_code,
 			:subtotal, :total, :currency, :coupon_code, :discount_amount,
@@ -113,6 +135,13 @@ func (r *orderRepository) Create(ctx context.Context, order *entity.Order) error
 		)
 	`, order)
 	if err != nil {
+		var mysqlErr *mysqldriver.MySQLError
+		if errors.As(err, &mysqlErr) && mysqlErr.Number == 1062 {
+			// Two concurrent double-submits with the same idempotency key
+			// both passed the pre-insert FindByIdempotencyKey check before
+			// either committed — the UNIQUE index is the real guard here.
+			return repository.ErrDuplicateEntry
+		}
 		return err
 	}
 
@@ -142,6 +171,63 @@ func (r *orderRepository) UpdateStatus(ctx context.Context, id string, status en
 func (r *orderRepository) UpdatePaymentStatus(ctx context.Context, id string, status entity.PaymentStatus) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE orders SET payment_status = ? WHERE id = ?`, status, id)
 	return err
+}
+
+func (r *orderRepository) MarkPaidIfUnpaid(ctx context.Context, id string) (bool, error) {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE orders SET payment_status = ? WHERE id = ? AND payment_status != ?`,
+		entity.PaymentStatusPaid, id, entity.PaymentStatusPaid,
+	)
+	if err != nil {
+		return false, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return affected > 0, nil
+}
+
+// FindExpiredUnpaidOrders filters in Go rather than SQL because
+// payment_expiry is stored as the RFC3339 string Komerce returns, not a
+// proper DATETIME column — lexicographic comparison isn't reliably safe
+// across timezone-offset formatting differences.
+func (r *orderRepository) FindExpiredUnpaidOrders(ctx context.Context, now time.Time) ([]entity.Order, error) {
+	var candidates []entity.Order
+	if err := r.db.SelectContext(ctx, &candidates, `
+		SELECT * FROM orders
+		WHERE payment_status = ? AND payment_expiry IS NOT NULL AND payment_expiry != ''
+	`, entity.PaymentStatusUnpaid); err != nil {
+		return nil, err
+	}
+
+	var expired []entity.Order
+	for _, o := range candidates {
+		deadline, err := time.Parse(time.RFC3339, *o.PaymentExpiry)
+		if err != nil || !now.After(deadline) {
+			continue
+		}
+		if err := r.db.SelectContext(ctx, &o.Items, `SELECT * FROM order_items WHERE order_id = ?`, o.ID); err != nil {
+			return nil, err
+		}
+		expired = append(expired, o)
+	}
+	return expired, nil
+}
+
+func (r *orderRepository) ExpireIfUnpaid(ctx context.Context, id string) (bool, error) {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE orders SET payment_status = ? WHERE id = ? AND payment_status = ?`,
+		entity.PaymentStatusExpired, id, entity.PaymentStatusUnpaid,
+	)
+	if err != nil {
+		return false, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return affected > 0, nil
 }
 
 func (r *orderRepository) GetSalesSummary(ctx context.Context, from, to time.Time) (*repository.SalesSummary, error) {

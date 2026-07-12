@@ -21,6 +21,8 @@ type Dependencies struct {
 	CouponHandler         *handler.CouponHandler
 	NewsletterHandler     *handler.NewsletterHandler
 	NotificationHandler   *handler.NotificationHandler
+	ShippingHandler       *handler.ShippingHandler
+	PaymentHandler        *handler.PaymentHandler
 }
 
 func Register(e *echo.Echo, deps Dependencies) {
@@ -47,11 +49,16 @@ func Register(e *echo.Echo, deps Dependencies) {
 	v1.GET("/products/:slug", deps.ProductHandler.GetBySlug)
 	v1.GET("/exchange-rate", deps.ExchangeRateHandler.Get)
 	v1.POST("/orders", deps.OrderHandler.Create)
+	v1.GET("/orders/:id", deps.OrderHandler.GetByID)
+	v1.GET("/payment/methods", deps.PaymentHandler.Methods)
+	v1.POST("/webhooks/komerce/payment", deps.PaymentHandler.KomerceCallback)
 	v1.POST("/service-requests", deps.ServiceRequestHandler.Create)
 	v1.GET("/reviews", deps.ReviewHandler.ListPublic)
 	v1.POST("/reviews", deps.ReviewHandler.Create)
 	v1.POST("/coupons/validate", deps.CouponHandler.Validate)
 	v1.POST("/newsletter/subscribe", deps.NewsletterHandler.Subscribe)
+	v1.GET("/shipping/destinations", deps.ShippingHandler.SearchDestinations)
+	v1.POST("/shipping/cost", deps.ShippingHandler.CalculateCost)
 
 	admin := v1.Group("/admin", deps.JWTAuth, appmw.RequireRole("admin"))
 	admin.POST("/products", deps.ProductHandler.Create)
@@ -67,6 +74,7 @@ func Register(e *echo.Echo, deps Dependencies) {
 	admin.GET("/orders/:id", deps.OrderHandler.GetByID)
 	admin.PATCH("/orders/:id/status", deps.OrderHandler.UpdateStatus)
 	admin.PATCH("/orders/:id/payment-status", deps.OrderHandler.UpdatePaymentStatus)
+	admin.POST("/orders/:id/check-payment-status", deps.PaymentHandler.CheckStatus)
 
 	admin.GET("/reports/sales", deps.OrderHandler.GetSalesReport)
 	admin.GET("/reports/sales/export", deps.OrderHandler.ExportSalesReport)

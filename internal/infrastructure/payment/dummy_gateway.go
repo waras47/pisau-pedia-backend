@@ -20,8 +20,11 @@ func NewDummyGateway(frontendURL string) *DummyGateway {
 	return &DummyGateway{frontendURL: frontendURL}
 }
 
-func (g *DummyGateway) CreateInvoice(_ context.Context, input usecase.CreateInvoiceInput) (*usecase.InvoiceResult, error) {
-	return &usecase.InvoiceResult{
-		InvoiceURL: fmt.Sprintf("%s/checkout/success?order=%s", g.frontendURL, input.ExternalID),
+func (g *DummyGateway) CreateInvoice(_ context.Context, input usecase.CreateInvoiceInput) (*usecase.PaymentInstruction, error) {
+	url := fmt.Sprintf("%s/checkout/success?order=%s", g.frontendURL, input.ExternalID)
+	return &usecase.PaymentInstruction{
+		Provider:   "dummy",
+		InvoiceURL: url,
+		PaymentURL: url,
 	}, nil
 }

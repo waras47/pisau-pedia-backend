@@ -1,0 +1,9 @@
+ALTER TABLE orders
+    DROP COLUMN payment_provider,
+    DROP COLUMN payment_id,
+    DROP COLUMN payment_type,
+    DROP COLUMN payment_channel,
+    DROP COLUMN payment_va_number,
+    DROP COLUMN payment_qr_string,
+    DROP COLUMN payment_url,
+    DROP COLUMN payment_expiry;

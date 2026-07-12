@@ -46,13 +46,28 @@ type RajaOngkirConfig struct {
 	OriginID string
 }
 
+type KomercePaymentConfig struct {
+	BaseURL     string
+	APIKey      string
+	CallbackKey string
+}
+
+type QrislyConfig struct {
+	BaseURL     string
+	APIKey      string
+	CallbackKey string
+	QrisID      string
+}
+
 type Config struct {
 	App         AppConfig
 	DB          DBConfig
 	JWT         JWTConfig
-	Minio       MinioConfig
-	RajaOngkir  RajaOngkirConfig
-	FrontendURL string
+	Minio          MinioConfig
+	RajaOngkir     RajaOngkirConfig
+	KomercePayment KomercePaymentConfig
+	Qrisly         QrislyConfig
+	FrontendURL    string
 }
 
 // insecureDefaultSecrets are placeholder values from .env.example that must
@@ -110,6 +125,17 @@ func Load() (*Config, error) {
 			BaseURL:  v.GetString("RAJAONGKIR_BASE_URL"),
 			APIKey:   v.GetString("RAJAONGKIR_API_KEY"),
 			OriginID: v.GetString("RAJAONGKIR_ORIGIN_ID"),
+		},
+		KomercePayment: KomercePaymentConfig{
+			BaseURL:     v.GetString("KOMERCE_PAYMENT_BASE_URL"),
+			APIKey:      v.GetString("KOMERCE_PAYMENT_API_KEY"),
+			CallbackKey: v.GetString("KOMERCE_PAYMENT_CALLBACK_KEY"),
+		},
+		Qrisly: QrislyConfig{
+			BaseURL:     v.GetString("KOMERCE_QRISLY_BASE_URL"),
+			APIKey:      v.GetString("KOMERCE_QRISLY_API_KEY"),
+			CallbackKey: v.GetString("KOMERCE_QRISLY_CALLBACK_KEY"),
+			QrisID:      v.GetString("KOMERCE_QRISLY_ID"),
 		},
 		FrontendURL: v.GetString("FRONTEND_URL"),
 	}

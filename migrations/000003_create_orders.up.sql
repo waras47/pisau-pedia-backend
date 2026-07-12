@@ -1,0 +1,40 @@
+CREATE TABLE orders (
+    id                     CHAR(36)     NOT NULL PRIMARY KEY,
+    user_id                CHAR(36)     NULL,
+    status                 ENUM('pending', 'processing', 'ready_for_delivery', 'delivered', 'cancelled') NOT NULL DEFAULT 'pending',
+    payment_status         ENUM('unpaid', 'paid', 'expired', 'failed') NOT NULL DEFAULT 'unpaid',
+    customer_name          VARCHAR(150) NOT NULL,
+    customer_email         VARCHAR(255) NOT NULL,
+    customer_phone         VARCHAR(20)  NULL,
+    shipping_address       VARCHAR(500) NOT NULL,
+    shipping_city          VARCHAR(100) NOT NULL,
+    shipping_province      VARCHAR(100) NULL,
+    shipping_postal_code   VARCHAR(20)  NOT NULL,
+    subtotal               BIGINT UNSIGNED NOT NULL,
+    total                  BIGINT UNSIGNED NOT NULL,
+    currency               VARCHAR(3)   NOT NULL DEFAULT 'IDR',
+    xendit_external_id     VARCHAR(100) NULL,
+    xendit_invoice_url     VARCHAR(500) NULL,
+    created_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at             DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    CONSTRAINT fk_orders_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL,
+    UNIQUE KEY uq_orders_xendit_external_id (xendit_external_id),
+    KEY idx_orders_user_id (user_id),
+    KEY idx_orders_status (status),
+    KEY idx_orders_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE order_items (
+    id            CHAR(36) NOT NULL PRIMARY KEY,
+    order_id      CHAR(36) NOT NULL,
+    product_id    CHAR(36) NULL,
+    product_name  VARCHAR(200) NOT NULL,
+    product_slug  VARCHAR(220) NOT NULL,
+    price         BIGINT UNSIGNED NOT NULL,
+    quantity      INT UNSIGNED NOT NULL,
+    subtotal      BIGINT UNSIGNED NOT NULL,
+    CONSTRAINT fk_order_items_order FOREIGN KEY (order_id) REFERENCES orders(id) ON DELETE CASCADE,
+    CONSTRAINT fk_order_items_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE SET NULL,
+    KEY idx_order_items_order_id (order_id),
+    KEY idx_order_items_product_id (product_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

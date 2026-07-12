@@ -104,6 +104,13 @@ func (u *NotificationUsecase) NotifyOrderStatusChanged(ctx context.Context, orde
 		ptr(order.ID), ptr("/admin/orders"))
 }
 
+func (u *NotificationUsecase) NotifyOrderPaid(ctx context.Context, order *entity.Order) error {
+	return u.create(ctx, entity.NotificationModuleOrder, "order_paid",
+		"Pembayaran Diterima",
+		fmt.Sprintf("Pesanan #%s dari %s telah dibayar (Rp%d)", order.ID[:8], order.CustomerName, order.Total),
+		ptr(order.ID), ptr("/admin/orders"))
+}
+
 func (u *NotificationUsecase) NotifyServiceRequestCreated(ctx context.Context, req *entity.ServiceRequest) error {
 	return u.create(ctx, entity.NotificationModuleService, "service_created",
 		"Permintaan Servis Baru",

@@ -62,6 +62,9 @@ func (h *OrderHandler) Create(c echo.Context) error {
 		if errors.Is(err, usecase.ErrEmptyOrder) {
 			return response.Error(c, http.StatusUnprocessableEntity, "order must have at least one valid item", nil)
 		}
+		if errors.Is(err, usecase.ErrInsufficientStock) {
+			return response.Error(c, http.StatusConflict, err.Error(), nil)
+		}
 		return response.Error(c, http.StatusInternalServerError, "failed to create order", nil)
 	}
 	return response.Success(c, http.StatusCreated, "Order created", dto.ToOrderResponse(order))

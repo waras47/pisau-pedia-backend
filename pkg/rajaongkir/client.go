@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -26,7 +27,25 @@ func New(baseURL, apiKey, originID string) *Client {
 		baseURL:    strings.TrimRight(baseURL, "/"),
 		apiKey:     apiKey,
 		originID:   originID,
-		httpClient: &http.Client{Timeout: 15 * time.Second},
+		// The combined multi-courier cost query is occasionally slow on
+		// Komerce's sandbox backend (observed up to ~15s even after the
+		// IPv4 fix below) — give it real headroom instead of failing
+		// checkout over transient sandbox latency.
+		httpClient: &http.Client{Timeout: 25 * time.Second, Transport: ipv4OnlyTransport()},
+	}
+}
+
+// ipv4OnlyTransport forces outbound connections over IPv4. On some networks
+// the Cloudflare-fronted Komerce API completes an IPv6 TCP handshake but
+// then hangs indefinitely on the request itself, so Go's normal
+// dual-stack/Happy-Eyeballs dialing doesn't fail fast enough to fall back —
+// every call silently eats the full client timeout instead.
+func ipv4OnlyTransport() *http.Transport {
+	dialer := &net.Dialer{Timeout: 10 * time.Second}
+	return &http.Transport{
+		DialContext: func(ctx context.Context, network, addr string) (net.Conn, error) {
+			return dialer.DialContext(ctx, "tcp4", addr)
+		},
 	}
 }
 

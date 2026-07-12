@@ -329,6 +329,26 @@ func (r *productRepository) Delete(ctx context.Context, id string) error {
 	return err
 }
 
+func (r *productRepository) DecrementStockIfAvailable(ctx context.Context, productID string, qty uint) (bool, error) {
+	res, err := r.db.ExecContext(ctx,
+		`UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?`,
+		qty, productID, qty,
+	)
+	if err != nil {
+		return false, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return affected > 0, nil
+}
+
+func (r *productRepository) RestoreStock(ctx context.Context, productID string, qty uint) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE products SET stock = stock + ? WHERE id = ?`, qty, productID)
+	return err
+}
+
 func (r *productRepository) GetInventorySummary(ctx context.Context, lowStockThreshold uint) (*repository.InventorySummary, error) {
 	summary := &repository.InventorySummary{}
 

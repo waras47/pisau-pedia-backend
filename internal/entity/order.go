@@ -23,9 +23,18 @@ const (
 
 type Order struct {
 	ID                 string        `db:"id"`
+	IdempotencyKey     *string       `db:"idempotency_key"`
 	UserID             *string       `db:"user_id"`
 	Status             OrderStatus   `db:"status"`
 	PaymentStatus      PaymentStatus `db:"payment_status"`
+	PaymentProvider    *string       `db:"payment_provider"`
+	PaymentID          *string       `db:"payment_id"`
+	PaymentType        *string       `db:"payment_type"`
+	PaymentChannel     *string       `db:"payment_channel"`
+	PaymentVANumber    *string       `db:"payment_va_number"`
+	PaymentQRString    *string       `db:"payment_qr_string"`
+	PaymentURL         *string       `db:"payment_url"`
+	PaymentExpiry      *string       `db:"payment_expiry"`
 	CustomerName       string        `db:"customer_name"`
 	CustomerEmail      string        `db:"customer_email"`
 	CustomerPhone      *string       `db:"customer_phone"`

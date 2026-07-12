@@ -4,16 +4,22 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/entity"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/repository"
+	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/komercepay"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/rajaongkir"
 )
 
-var ErrEmptyOrder = errors.New("order must have at least one valid item")
+var (
+	ErrEmptyOrder        = errors.New("order must have at least one valid item")
+	ErrInsufficientStock = errors.New("insufficient stock")
+)
 
 type OrderItemInput struct {
 	ProductSlug string
@@ -21,6 +27,12 @@ type OrderItemInput struct {
 }
 
 type CreateOrderInput struct {
+	// IdempotencyKey is a client-generated token unique per checkout attempt
+	// (not per retry of that attempt). A double-submit — double-click,
+	// network retry, multiple tabs — replays the same key, so CreateOrder
+	// returns the order it already created instead of billing the customer
+	// twice.
+	IdempotencyKey     string
 	CustomerName       string
 	CustomerEmail      string
 	CustomerPhone      *string
@@ -29,6 +41,11 @@ type CreateOrderInput struct {
 	ShippingProvince   *string
 	ShippingPostalCode string
 	CouponCode         string
+	DestinationID      string
+	Courier            string
+	Service            string
+	PaymentType        string
+	PaymentChannel     string
 	Items              []OrderItemInput
 }
 
@@ -54,18 +71,40 @@ type OrderUsecase struct {
 	couponUsecase       *CouponUsecase
 	notificationUsecase *NotificationUsecase
 	shippingClient      *rajaongkir.Client
+	paymentClient       *komercepay.Client
+	log                 zerolog.Logger
 }
 
-func NewOrderUsecase(orderRepo repository.OrderRepository, productRepo repository.ProductRepository, paymentGateway PaymentGateway, couponUsecase *CouponUsecase, notificationUsecase *NotificationUsecase, shippingClient *rajaongkir.Client) *OrderUsecase {
-	return &OrderUsecase{orderRepo: orderRepo, productRepo: productRepo, paymentGateway: paymentGateway, couponUsecase: couponUsecase, notificationUsecase: notificationUsecase, shippingClient: shippingClient}
+func NewOrderUsecase(orderRepo repository.OrderRepository, productRepo repository.ProductRepository, paymentGateway PaymentGateway, couponUsecase *CouponUsecase, notificationUsecase *NotificationUsecase, shippingClient *rajaongkir.Client, paymentClient *komercepay.Client, log zerolog.Logger) *OrderUsecase {
+	return &OrderUsecase{orderRepo: orderRepo, productRepo: productRepo, paymentGateway: paymentGateway, couponUsecase: couponUsecase, notificationUsecase: notificationUsecase, shippingClient: shippingClient, paymentClient: paymentClient, log: log}
+}
+
+func strPtr(s string) *string { return &s }
+
+func strPtrOrNil(s string) *string {
+	if s == "" {
+		return nil
+	}
+	return &s
 }
 
 func (u *OrderUsecase) CreateOrder(ctx context.Context, input CreateOrderInput) (*entity.Order, error) {
+	if input.IdempotencyKey != "" {
+		existing, err := u.orderRepo.FindByIdempotencyKey(ctx, input.IdempotencyKey)
+		if err != nil && !errors.Is(err, repository.ErrOrderNotFound) {
+			return nil, err
+		}
+		if existing != nil {
+			return existing, nil
+		}
+	}
+
 	var items []entity.OrderItem
 	var subtotal int64
+	var totalWeight int
 
-	// Prices are recomputed from the product catalog, never trusted from the
-	// client — the same defensive pattern the old Next.js checkout route used.
+	// Prices and weight are recomputed from the product catalog, never trusted
+	// from the client — the same defensive pattern the old Next.js checkout used.
 	for _, i := range input.Items {
 		if i.Quantity == 0 {
 			continue
@@ -79,6 +118,7 @@ func (u *OrderUsecase) CreateOrder(ctx context.Context, input CreateOrderInput) 
 		}
 		lineSubtotal := product.Price * int64(i.Quantity)
 		subtotal += lineSubtotal
+		totalWeight += int(product.Weight) * int(i.Quantity)
 		items = append(items, entity.OrderItem{
 			ID:          uuid.New().String(),
 			ProductID:   &product.ID,
@@ -94,9 +134,36 @@ func (u *OrderUsecase) CreateOrder(ctx context.Context, input CreateOrderInput) 
 		return nil, ErrEmptyOrder
 	}
 
+	// Reserve stock up front, atomically per item, so two concurrent
+	// checkouts can never both win the last unit — a customer who never pays
+	// gets their reservation released automatically by ReleaseExpiredOrders,
+	// and anything that fails downstream in this call releases immediately
+	// via the deferred rollback below.
+	var reserved []entity.OrderItem
+	orderCommitted := false
+	defer func() {
+		if orderCommitted {
+			return
+		}
+		for _, it := range reserved {
+			_ = u.productRepo.RestoreStock(ctx, *it.ProductID, it.Quantity)
+		}
+	}()
+	for _, it := range items {
+		ok, err := u.productRepo.DecrementStockIfAvailable(ctx, *it.ProductID, it.Quantity)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, fmt.Errorf("%w: %s", ErrInsufficientStock, it.ProductName)
+		}
+		reserved = append(reserved, it)
+	}
+
 	var couponCode *string
 	var couponID string
 	var discountAmount int64
+	var freeShipping bool
 	if input.CouponCode != "" {
 		result, err := u.couponUsecase.ValidateCoupon(ctx, input.CouponCode, subtotal)
 		if err != nil {
@@ -105,12 +172,41 @@ func (u *OrderUsecase) CreateOrder(ctx context.Context, input CreateOrderInput) 
 		couponCode = &input.CouponCode
 		couponID = result.Coupon.ID
 		discountAmount = result.DiscountAmount
+		freeShipping = result.FreeShipping
+	}
+
+	// Shipping cost is recomputed server-side against RajaOngkir for the chosen
+	// courier+service — the client-sent cost is never trusted. A free_shipping
+	// coupon zeroes it out.
+	var shippingCost int64
+	var shippingCourier, shippingService, shippingETD, destinationID *string
+	if input.DestinationID != "" && input.Courier != "" && input.Service != "" && u.shippingClient.Enabled() {
+		if totalWeight < minWeightGrams {
+			totalWeight = minWeightGrams
+		}
+		options, err := u.shippingClient.CalculateDomesticCost(ctx, u.shippingClient.OriginID(), input.DestinationID, totalWeight, []string{input.Courier})
+		if err != nil {
+			return nil, err
+		}
+		for _, opt := range options {
+			if opt.Code == input.Courier && opt.Service == input.Service {
+				shippingCost = opt.Cost
+				etd := opt.ETD
+				c, s, d := input.Courier, input.Service, input.DestinationID
+				shippingCourier, shippingService, shippingETD, destinationID = &c, &s, &etd, &d
+				break
+			}
+		}
+	}
+	if freeShipping {
+		shippingCost = 0
 	}
 
 	orderID := uuid.New().String()
 	now := time.Now()
 	order := &entity.Order{
 		ID:                 orderID,
+		IdempotencyKey:     strPtrOrNil(input.IdempotencyKey),
 		Status:             entity.OrderStatusPending,
 		PaymentStatus:      entity.PaymentStatusUnpaid,
 		CreatedAt:          now,
@@ -123,44 +219,157 @@ func (u *OrderUsecase) CreateOrder(ctx context.Context, input CreateOrderInput) 
 		ShippingProvince:   input.ShippingProvince,
 		ShippingPostalCode: input.ShippingPostalCode,
 		Subtotal:           subtotal,
-		Total:              subtotal - discountAmount,
+		Total:              subtotal - discountAmount + shippingCost,
 		Currency:           "IDR",
 		CouponCode:         couponCode,
 		DiscountAmount:     discountAmount,
+		ShippingCost:       shippingCost,
+		ShippingCourier:    shippingCourier,
+		ShippingService:    shippingService,
+		ShippingETD:        shippingETD,
+		DestinationID:      destinationID,
 		XenditExternalID:   &orderID,
 		Items:              items,
 	}
 
-	if err := u.orderRepo.Create(ctx, order); err != nil {
-		return nil, err
+	// Create the payment first so the instruction (payment_id, VA/QRIS, hosted
+	// URL) is persisted in the same insert as the order.
+	var customerPhone string
+	if input.CustomerPhone != nil {
+		customerPhone = *input.CustomerPhone
+	}
+	paymentItems := make([]PaymentItem, 0, len(items))
+	for _, it := range items {
+		paymentItems = append(paymentItems, PaymentItem{Name: it.ProductName, Price: it.Price, Quantity: it.Quantity})
 	}
 
-	if couponID != "" {
-		if err := u.couponUsecase.couponRepo.IncrementUsage(ctx, couponID); err != nil {
-			return nil, err
-		}
-	}
-
-	invoice, err := u.paymentGateway.CreateInvoice(ctx, CreateInvoiceInput{
-		ExternalID:    orderID,
-		Amount:        order.Total,
-		CustomerName:  order.CustomerName,
-		CustomerEmail: order.CustomerEmail,
-		Description:   fmt.Sprintf("Pisau Pedia order — %d item(s)", len(items)),
+	instruction, err := u.paymentGateway.CreateInvoice(ctx, CreateInvoiceInput{
+		ExternalID:     orderID,
+		Amount:         order.Total,
+		CustomerName:   order.CustomerName,
+		CustomerEmail:  order.CustomerEmail,
+		CustomerPhone:  customerPhone,
+		Description:    fmt.Sprintf("Pisau Pedia order — %d item(s)", len(items)),
+		PaymentType:    input.PaymentType,
+		PaymentChannel: input.PaymentChannel,
+		Items:          paymentItems,
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	if err := u.orderRepo.UpdateInvoiceURL(ctx, orderID, invoice.InvoiceURL); err != nil {
+	order.XenditInvoiceURL = &instruction.InvoiceURL
+	order.PaymentProvider = strPtr(instruction.Provider)
+	order.PaymentID = strPtrOrNil(instruction.PaymentID)
+	order.PaymentType = strPtrOrNil(input.PaymentType)
+	order.PaymentChannel = strPtrOrNil(input.PaymentChannel)
+	order.PaymentVANumber = strPtrOrNil(instruction.VANumber)
+	order.PaymentQRString = strPtrOrNil(instruction.QRString)
+	order.PaymentURL = strPtrOrNil(instruction.PaymentURL)
+	order.PaymentExpiry = strPtrOrNil(instruction.ExpiryTime)
+
+	if err := u.orderRepo.Create(ctx, order); err != nil {
+		// A concurrent request with the same idempotency key won the race and
+		// committed first — the UNIQUE index caught what the pre-check above
+		// couldn't. That request made its own stock reservation, so this
+		// one's reservation (still pending in the deferred rollback above)
+		// must be released — return the order that actually exists instead
+		// of failing the checkout.
+		if errors.Is(err, repository.ErrDuplicateEntry) && input.IdempotencyKey != "" {
+			return u.orderRepo.FindByIdempotencyKey(ctx, input.IdempotencyKey)
+		}
 		return nil, err
 	}
-	order.XenditInvoiceURL = &invoice.InvoiceURL
+	orderCommitted = true
 
-	// Notification failures shouldn't block order creation.
-	_ = u.notificationUsecase.NotifyOrderCreated(ctx, order)
+	// From here on the order is real — it's persisted, its payment invoice
+	// exists, its stock is reserved. Nothing past this point may fail the
+	// request back to the customer as "checkout failed", because it isn't:
+	// they'd retry (or the frontend's stored idempotency key would resubmit)
+	// into a confusing "but I thought it failed" state despite the order
+	// being perfectly valid. Failures here are logged, not returned.
+	if couponID != "" {
+		if err := u.couponUsecase.couponRepo.IncrementUsage(ctx, couponID); err != nil {
+			u.log.Error().Err(err).Str("order_id", order.ID).Str("coupon_id", couponID).
+				Msg("order created but failed to increment coupon usage count")
+		}
+	}
+
+	if err := u.notificationUsecase.NotifyOrderCreated(ctx, order); err != nil {
+		u.log.Warn().Err(err).Str("order_id", order.ID).Msg("order created but failed to send notification")
+	}
 
 	return order, nil
+}
+
+// ReleaseExpiredOrders finds still-unpaid orders past their payment
+// deadline, cancels them, and releases the stock they reserved at checkout
+// back to the catalog. Meant to be called periodically (see the ticker in
+// cmd/api/main.go) — it's the automated counterpart to the admin's manual
+// "Cek Status Pembayaran" button, and doubles as the safety net for it: a
+// deadline passing doesn't necessarily mean nobody paid, it can mean the
+// webhook that would have told us was lost, so every candidate is
+// double-checked against Komerce directly before anything is cancelled.
+func (u *OrderUsecase) ReleaseExpiredOrders(ctx context.Context) (int, error) {
+	orders, err := u.orderRepo.FindExpiredUnpaidOrders(ctx, time.Now())
+	if err != nil {
+		return 0, err
+	}
+
+	released := 0
+	for _, o := range orders {
+		if u.reconcileIfActuallyPaid(ctx, o) {
+			continue // webhook was lost, not the customer — order stays sold, stock stays reserved
+		}
+
+		// Conditional on still being unpaid: if a payment landed (webhook or
+		// manual check) in the moment between the query above and this
+		// update, this is a no-op and the order's stock stays reserved —
+		// it was legitimately sold.
+		changed, err := u.orderRepo.ExpireIfUnpaid(ctx, o.ID)
+		if err != nil || !changed {
+			continue
+		}
+		for _, item := range o.Items {
+			if item.ProductID != nil {
+				_ = u.productRepo.RestoreStock(ctx, *item.ProductID, item.Quantity)
+			}
+		}
+		_ = u.orderRepo.UpdateStatus(ctx, o.ID, entity.OrderStatusCancelled)
+		released++
+	}
+	return released, nil
+}
+
+// reconcileIfActuallyPaid asks Komerce directly whether an order Komerce's
+// webhook never confirmed was in fact paid. If so it marks the order paid
+// (same atomic MarkPaidIfUnpaid + notify path as the webhook and the manual
+// check use) and returns true so the caller leaves it alone instead of
+// expiring it. Any reason the check can't be made (dummy-gateway order,
+// Komerce unreachable) falls through to false — the expiry sweep proceeds
+// as if unconfirmed, same as it always has.
+func (u *OrderUsecase) reconcileIfActuallyPaid(ctx context.Context, o entity.Order) bool {
+	if u.paymentClient == nil || !u.paymentClient.Enabled() {
+		return false
+	}
+	if o.PaymentProvider == nil || *o.PaymentProvider != "komerce" || o.PaymentID == nil || *o.PaymentID == "" {
+		return false
+	}
+
+	status, err := u.paymentClient.GetStatus(ctx, *o.PaymentID)
+	if err != nil || !strings.EqualFold(status.Status, "PAID") {
+		return false
+	}
+
+	changed, err := u.orderRepo.MarkPaidIfUnpaid(ctx, o.ID)
+	if err != nil {
+		return false
+	}
+	if changed {
+		o.PaymentStatus = entity.PaymentStatusPaid
+		_ = u.notificationUsecase.NotifyOrderPaid(ctx, &o)
+	}
+	return true
 }
 
 func (u *OrderUsecase) ListOrders(ctx context.Context, input OrderListInput) (*OrderListResult, error) {

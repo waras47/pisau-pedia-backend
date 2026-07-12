@@ -83,3 +83,16 @@ repository → usecase → infrastructure → delivery) sebagai dokumen
 skema database yang **sudah disiapkan pondasinya** di fase ini (mis. FK ke
 `users` dan `products` sudah ada, jadi modul order/review tinggal
 nambah tabel yang mereferensikan keduanya).
+
+> **Update:** Order & Review sudah didokumentasikan di
+> [11-orders-reports-excel-pdf.md](11-orders-reports-excel-pdf.md).
+> Newsletter subscriber dan sebagian perbaikan admin panel Customer
+> sudah didokumentasikan di
+> [12-perbaikan-newsletter-customer-admin.md](12-perbaikan-newsletter-customer-admin.md)
+> — Coupon, Configurator, dan Custom engraving masih belum ada dokumen
+> tersendiri. Integrasi payment gateway (RajaOngkir ongkir + Komerce
+> Payment VA/QRIS) sudah didokumentasikan di
+> [14-integrasi-rajaongkir-payment-qris.md](14-integrasi-rajaongkir-payment-qris.md).
+> Perbaikan keandalan pembayaran (idempotency key, race condition webhook,
+> cek status manual) ada di
+> [15-keandalan-pembayaran-idempotency.md](15-keandalan-pembayaran-idempotency.md).

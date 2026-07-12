@@ -38,4 +38,12 @@ type ProductRepository interface {
 	Delete(ctx context.Context, id string) error
 	GetInventorySummary(ctx context.Context, lowStockThreshold uint) (*InventorySummary, error)
 	UpdateRatingStats(ctx context.Context, productID string, ratingAvg float64, reviewCount uint) error
+	// DecrementStockIfAvailable atomically reserves qty units of stock,
+	// failing (false, nil) instead of going negative if fewer than qty are
+	// available. Used at checkout so two concurrent orders can never both
+	// win the last unit.
+	DecrementStockIfAvailable(ctx context.Context, productID string, qty uint) (bool, error)
+	// RestoreStock releases a reservation made by DecrementStockIfAvailable —
+	// called when an order fails to complete or its payment expires.
+	RestoreStock(ctx context.Context, productID string, qty uint) error
 }
