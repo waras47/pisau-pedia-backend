@@ -18,6 +18,7 @@ import (
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/config"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/database"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/exchangerate"
+	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/googleoauth"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/komercepay"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/logger"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/rajaongkir"
@@ -65,7 +66,8 @@ func main() {
 
 	// Usecases
 	notificationUsecase := usecase.NewNotificationUsecase(notificationRepo)
-	authUsecase := usecase.NewAuthUsecase(userRepo, refreshTokenRepo, cfg.JWT, notificationUsecase)
+	googleOAuthClient := googleoauth.New(cfg.GoogleOAuth.ClientID, cfg.GoogleOAuth.ClientSecret, cfg.GoogleOAuth.RedirectURL)
+	authUsecase := usecase.NewAuthUsecase(userRepo, refreshTokenRepo, cfg.JWT, notificationUsecase, googleOAuthClient)
 	userUsecase := usecase.NewUserUsecase(userRepo, addressRepo, orderRepo)
 	categoryUsecase := usecase.NewCategoryUsecase(categoryRepo)
 	productUsecase := usecase.NewProductUsecase(productRepo, categoryRepo, notificationUsecase)
@@ -86,9 +88,10 @@ func main() {
 	serviceRequestUsecase := usecase.NewServiceRequestUsecase(serviceRequestRepo, notificationUsecase)
 	reviewUsecase := usecase.NewReviewUsecase(reviewRepo, productRepo)
 	newsletterUsecase := usecase.NewNewsletterUsecase(newsletterRepo)
+	searchUsecase := usecase.NewSearchUsecase(productRepo, userRepo, orderRepo)
 
 	// Handlers
-	authHandler := handler.NewAuthHandler(authUsecase)
+	authHandler := handler.NewAuthHandler(authUsecase, cfg.FrontendURL)
 	userHandler := handler.NewUserHandler(userUsecase)
 	categoryHandler := handler.NewCategoryHandler(categoryUsecase)
 	productHandler := handler.NewProductHandler(productUsecase)
@@ -100,8 +103,10 @@ func main() {
 	notificationHandler := handler.NewNotificationHandler(notificationUsecase)
 	shippingHandler := handler.NewShippingHandler(shippingUsecase)
 	paymentHandler := handler.NewPaymentHandler(paymentUsecase)
+	searchHandler := handler.NewSearchHandler(searchUsecase)
 
 	jwtAuth := appmw.JWTAuth(cfg.JWT.Secret)
+	optionalJWTAuth := appmw.OptionalJWTAuth(cfg.JWT.Secret)
 
 	store, err := storage.New(cfg.Minio)
 	if err != nil {
@@ -114,6 +119,7 @@ func main() {
 
 	router.Register(e, router.Dependencies{
 		JWTAuth:               jwtAuth,
+		OptionalJWTAuth:       optionalJWTAuth,
 		AuthHandler:           authHandler,
 		UserHandler:           userHandler,
 		CategoryHandler:       categoryHandler,
@@ -128,6 +134,7 @@ func main() {
 		NotificationHandler:   notificationHandler,
 		ShippingHandler:       shippingHandler,
 		PaymentHandler:        paymentHandler,
+		SearchHandler:         searchHandler,
 	})
 
 	go runExpiredOrderSweep(orderUsecase, log)

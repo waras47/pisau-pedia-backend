@@ -9,6 +9,7 @@ import (
 
 type Dependencies struct {
 	JWTAuth               echo.MiddlewareFunc
+	OptionalJWTAuth       echo.MiddlewareFunc
 	AuthHandler           *handler.AuthHandler
 	UserHandler           *handler.UserHandler
 	CategoryHandler       *handler.CategoryHandler
@@ -23,6 +24,7 @@ type Dependencies struct {
 	NotificationHandler   *handler.NotificationHandler
 	ShippingHandler       *handler.ShippingHandler
 	PaymentHandler        *handler.PaymentHandler
+	SearchHandler         *handler.SearchHandler
 }
 
 func Register(e *echo.Echo, deps Dependencies) {
@@ -33,6 +35,10 @@ func Register(e *echo.Echo, deps Dependencies) {
 	auth.POST("/login", deps.AuthHandler.Login)
 	auth.POST("/refresh", deps.AuthHandler.Refresh)
 	auth.POST("/logout", deps.AuthHandler.Logout, deps.JWTAuth)
+	auth.GET("/google/status", deps.AuthHandler.GoogleStatus)
+	auth.GET("/google", deps.AuthHandler.GoogleLogin)
+	auth.GET("/google/callback", deps.AuthHandler.GoogleCallback)
+	auth.POST("/google/exchange", deps.AuthHandler.GoogleExchange)
 
 	users := v1.Group("/users/me", deps.JWTAuth)
 	users.GET("", deps.UserHandler.GetProfile)
@@ -42,13 +48,16 @@ func Register(e *echo.Echo, deps Dependencies) {
 	users.POST("/addresses", deps.UserHandler.CreateAddress)
 	users.PATCH("/addresses/:id", deps.UserHandler.UpdateAddress)
 	users.DELETE("/addresses/:id", deps.UserHandler.DeleteAddress)
+	users.GET("/orders", deps.OrderHandler.ListMine)
+	users.GET("/orders/:id", deps.OrderHandler.GetMine)
+	users.POST("/orders/:id/confirm-received", deps.OrderHandler.ConfirmReceived)
 
 	v1.GET("/categories", deps.CategoryHandler.List)
 	v1.GET("/categories/:slug", deps.CategoryHandler.GetBySlug)
 	v1.GET("/products", deps.ProductHandler.List)
 	v1.GET("/products/:slug", deps.ProductHandler.GetBySlug)
 	v1.GET("/exchange-rate", deps.ExchangeRateHandler.Get)
-	v1.POST("/orders", deps.OrderHandler.Create)
+	v1.POST("/orders", deps.OrderHandler.Create, deps.OptionalJWTAuth)
 	v1.GET("/orders/:id", deps.OrderHandler.GetByID)
 	v1.GET("/payment/methods", deps.PaymentHandler.Methods)
 	v1.POST("/webhooks/komerce/payment", deps.PaymentHandler.KomerceCallback)
@@ -92,7 +101,8 @@ func Register(e *echo.Echo, deps Dependencies) {
 	admin.PATCH("/customers/:id/status", deps.UserHandler.UpdateCustomerStatus)
 
 	admin.GET("/reviews", deps.ReviewHandler.List)
-	admin.PATCH("/reviews/:id", deps.ReviewHandler.UpdateStatus)
+	admin.POST("/reviews", deps.ReviewHandler.CreateAdmin)
+	admin.PATCH("/reviews/:id", deps.ReviewHandler.Update)
 	admin.DELETE("/reviews/:id", deps.ReviewHandler.Delete)
 
 	admin.GET("/coupons", deps.CouponHandler.List)
@@ -108,4 +118,6 @@ func Register(e *echo.Echo, deps Dependencies) {
 	admin.GET("/notifications/unread-count", deps.NotificationHandler.UnreadCount)
 	admin.PATCH("/notifications/:id/read", deps.NotificationHandler.MarkAsRead)
 	admin.PATCH("/notifications/read-all", deps.NotificationHandler.MarkAllAsRead)
+
+	admin.GET("/search", deps.SearchHandler.Global)
 }

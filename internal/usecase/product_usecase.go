@@ -35,21 +35,30 @@ type ProductSpecInput struct {
 	Value string
 }
 
+// ProductImageInput carries an image URL plus an optional angle tag
+// ("front"/"back"/"side"/"top") — untagged images just join the general
+// gallery, same as before this field existed.
+type ProductImageInput struct {
+	URL   string
+	Angle *string
+}
+
 type ProductInput struct {
-	CategoryID     *string
-	Name           string
-	Slug           string
-	Description    *string
-	Price          int64
-	CompareAtPrice *int64
-	Maker          *string
-	Badge          *entity.Badge
-	Stock          *uint
-	Weight         *uint
-	IsActive       *bool
-	Images         []string
-	Specs          []ProductSpecInput
-	Highlights     []string
+	CategoryID       *string
+	Name             string
+	Slug             string
+	Description      *string
+	CareInstructions *string
+	Price            int64
+	CompareAtPrice   *int64
+	Maker            *string
+	Badge            *entity.Badge
+	Stock            *uint
+	Weight           *uint
+	IsActive         *bool
+	Images           []ProductImageInput
+	Specs            []ProductSpecInput
+	Highlights       []string
 }
 
 type ProductUsecase struct {
@@ -127,17 +136,18 @@ func (u *ProductUsecase) CreateProduct(ctx context.Context, input ProductInput) 
 	}
 
 	product := &entity.Product{
-		ID:             uuid.New().String(),
-		CategoryID:     input.CategoryID,
-		Name:           input.Name,
-		Slug:           slug,
-		Description:    input.Description,
-		Price:          input.Price,
-		CompareAtPrice: input.CompareAtPrice,
-		Currency:       "IDR",
-		Maker:          input.Maker,
-		Badge:          input.Badge,
-		IsActive:       true,
+		ID:               uuid.New().String(),
+		CategoryID:       input.CategoryID,
+		Name:             input.Name,
+		Slug:             slug,
+		Description:      input.Description,
+		CareInstructions: input.CareInstructions,
+		Price:            input.Price,
+		CompareAtPrice:   input.CompareAtPrice,
+		Currency:         "IDR",
+		Maker:            input.Maker,
+		Badge:            input.Badge,
+		IsActive:         true,
 	}
 	if input.Stock != nil {
 		product.Stock = *input.Stock
@@ -150,8 +160,8 @@ func (u *ProductUsecase) CreateProduct(ctx context.Context, input ProductInput) 
 		product.IsActive = *input.IsActive
 	}
 
-	for _, url := range input.Images {
-		product.Images = append(product.Images, entity.ProductImage{ID: uuid.New().String(), URL: url})
+	for _, img := range input.Images {
+		product.Images = append(product.Images, entity.ProductImage{ID: uuid.New().String(), URL: img.URL, Angle: img.Angle})
 	}
 	for _, spec := range input.Specs {
 		product.Specs = append(product.Specs, entity.ProductSpec{ID: uuid.New().String(), Label: spec.Label, Value: spec.Value})
@@ -183,6 +193,9 @@ func (u *ProductUsecase) UpdateProduct(ctx context.Context, id string, input Pro
 	if input.Description != nil {
 		product.Description = input.Description
 	}
+	if input.CareInstructions != nil {
+		product.CareInstructions = input.CareInstructions
+	}
 	if input.Price != 0 {
 		product.Price = input.Price
 	}
@@ -210,8 +223,8 @@ func (u *ProductUsecase) UpdateProduct(ctx context.Context, id string, input Pro
 
 	if input.Images != nil {
 		product.Images = nil
-		for _, url := range input.Images {
-			product.Images = append(product.Images, entity.ProductImage{ID: uuid.New().String(), URL: url})
+		for _, img := range input.Images {
+			product.Images = append(product.Images, entity.ProductImage{ID: uuid.New().String(), URL: img.URL, Angle: img.Angle})
 		}
 	}
 	if input.Specs != nil {

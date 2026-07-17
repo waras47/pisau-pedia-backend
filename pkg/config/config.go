@@ -59,6 +59,12 @@ type QrislyConfig struct {
 	QrisID      string
 }
 
+type GoogleOAuthConfig struct {
+	ClientID     string
+	ClientSecret string
+	RedirectURL  string
+}
+
 type Config struct {
 	App         AppConfig
 	DB          DBConfig
@@ -67,6 +73,7 @@ type Config struct {
 	RajaOngkir     RajaOngkirConfig
 	KomercePayment KomercePaymentConfig
 	Qrisly         QrislyConfig
+	GoogleOAuth    GoogleOAuthConfig
 	FrontendURL    string
 }
 
@@ -136,6 +143,11 @@ func Load() (*Config, error) {
 			APIKey:      v.GetString("KOMERCE_QRISLY_API_KEY"),
 			CallbackKey: v.GetString("KOMERCE_QRISLY_CALLBACK_KEY"),
 			QrisID:      v.GetString("KOMERCE_QRISLY_ID"),
+		},
+		GoogleOAuth: GoogleOAuthConfig{
+			ClientID:     v.GetString("GOOGLE_CLIENT_ID"),
+			ClientSecret: v.GetString("GOOGLE_CLIENT_SECRET"),
+			RedirectURL:  v.GetString("GOOGLE_REDIRECT_URL"),
 		},
 		FrontendURL: v.GetString("FRONTEND_URL"),
 	}

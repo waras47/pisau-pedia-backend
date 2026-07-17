@@ -15,10 +15,12 @@ require (
 	github.com/spf13/viper v1.21.0
 	github.com/xuri/excelize/v2 v2.11.0
 	golang.org/x/crypto v0.53.0
+	golang.org/x/oauth2 v0.36.0
 	golang.org/x/time v0.15.0
 )
 
 require (
+	cloud.google.com/go/compute/metadata v0.3.0 // indirect
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect

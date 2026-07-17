@@ -32,7 +32,14 @@ type CreateOrderInput struct {
 	// network retry, multiple tabs — replays the same key, so CreateOrder
 	// returns the order it already created instead of billing the customer
 	// twice.
-	IdempotencyKey     string
+	IdempotencyKey string
+	// UserID links the order to the account it was placed under, if any —
+	// empty means guest checkout. Set only when the request carried a valid
+	// access token (see appmw.OptionalJWTAuth); never trust a client-sent
+	// value for this. Guest orders (UserID == "") never appear in "Pesanan
+	// Saya" or become eligible for receipt confirmation — see
+	// docs/16-plan-konfirmasi-pesanan-diterima-review.md.
+	UserID             string
 	CustomerName       string
 	CustomerEmail      string
 	CustomerPhone      *string
@@ -54,6 +61,7 @@ type OrderListInput struct {
 	PerPage       int
 	Status        string
 	CustomerEmail string
+	Search        string
 }
 
 type OrderListResult struct {
@@ -207,6 +215,7 @@ func (u *OrderUsecase) CreateOrder(ctx context.Context, input CreateOrderInput) 
 	order := &entity.Order{
 		ID:                 orderID,
 		IdempotencyKey:     strPtrOrNil(input.IdempotencyKey),
+		UserID:             strPtrOrNil(input.UserID),
 		Status:             entity.OrderStatusPending,
 		PaymentStatus:      entity.PaymentStatusUnpaid,
 		CreatedAt:          now,
@@ -390,6 +399,7 @@ func (u *OrderUsecase) ListOrders(ctx context.Context, input OrderListInput) (*O
 		PerPage:       perPage,
 		Status:        input.Status,
 		CustomerEmail: input.CustomerEmail,
+		Search:        input.Search,
 	})
 	if err != nil {
 		return nil, err
@@ -431,6 +441,77 @@ func (u *OrderUsecase) UpdatePaymentStatus(ctx context.Context, id string, statu
 		return err
 	}
 	return u.orderRepo.UpdatePaymentStatus(ctx, id, status)
+}
+
+// ListMyOrders lists orders placed by userID while signed in — guest orders
+// never appear here even if the email matches an account created later, by
+// design (see docs/16-plan-konfirmasi-pesanan-diterima-review.md).
+func (u *OrderUsecase) ListMyOrders(ctx context.Context, userID string, page, perPage int) (*OrderListResult, error) {
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 {
+		perPage = 20
+	}
+	if perPage > 100 {
+		perPage = 100
+	}
+
+	orders, total, err := u.orderRepo.FindAll(ctx, repository.OrderFilter{
+		Page:    page,
+		PerPage: perPage,
+		UserID:  userID,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	totalPages := total / int64(perPage)
+	if total%int64(perPage) != 0 {
+		totalPages++
+	}
+	return &OrderListResult{Orders: orders, Page: page, PerPage: perPage, Total: total, TotalPages: totalPages}, nil
+}
+
+// GetMyOrder returns an order only if it belongs to userID. A mismatch (or
+// a guest order with no user_id at all) returns ErrOrderNotFound rather
+// than a distinct "forbidden" error, so the response never confirms
+// whether the order ID exists.
+func (u *OrderUsecase) GetMyOrder(ctx context.Context, userID, orderID string) (*entity.Order, error) {
+	order, err := u.orderRepo.FindByID(ctx, orderID)
+	if err != nil {
+		return nil, err
+	}
+	if order.UserID == nil || *order.UserID != userID {
+		return nil, repository.ErrOrderNotFound
+	}
+	return order, nil
+}
+
+// ConfirmReceived lets a customer self-report their package arrived. It
+// deliberately never touches Status — that stays under admin control; see
+// docs/16-plan-konfirmasi-pesanan-diterima-review.md for why.
+func (u *OrderUsecase) ConfirmReceived(ctx context.Context, userID, orderID string) (*entity.Order, error) {
+	order, err := u.GetMyOrder(ctx, userID, orderID)
+	if err != nil {
+		return nil, err
+	}
+
+	changed, err := u.orderRepo.ConfirmReceivedIfEligible(ctx, orderID, userID)
+	if err != nil {
+		return nil, err
+	}
+	if !changed {
+		if order.CustomerConfirmedAt != nil {
+			return order, nil // already confirmed earlier — clicking again is a harmless no-op
+		}
+		return nil, ErrOrderNotEligibleForConfirmation
+	}
+
+	now := time.Now()
+	order.CustomerConfirmedAt = &now
+	_ = u.notificationUsecase.NotifyOrderReceived(ctx, order)
+	return order, nil
 }
 
 type SalesReportResult struct {

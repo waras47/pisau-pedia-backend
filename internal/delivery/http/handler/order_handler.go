@@ -57,7 +57,13 @@ func (h *OrderHandler) Create(c echo.Context) error {
 		return response.Error(c, http.StatusUnprocessableEntity, "validation failed", err.Error())
 	}
 
-	order, err := h.orderUsecase.CreateOrder(c.Request().Context(), req.ToInput())
+	input := req.ToInput()
+	// Set only when appmw.OptionalJWTAuth verified a real access token —
+	// never trust a client-sent user id. Empty means guest checkout, which
+	// stays fully supported.
+	input.UserID = currentUserID(c)
+
+	order, err := h.orderUsecase.CreateOrder(c.Request().Context(), input)
 	if err != nil {
 		if errors.Is(err, usecase.ErrEmptyOrder) {
 			return response.Error(c, http.StatusUnprocessableEntity, "order must have at least one valid item", nil)
@@ -79,6 +85,7 @@ func (h *OrderHandler) List(c echo.Context) error {
 		PerPage:       perPage,
 		Status:        c.QueryParam("status"),
 		CustomerEmail: c.QueryParam("customer_email"),
+		Search:        c.QueryParam("search"),
 	})
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, "failed to list orders", nil)
@@ -101,6 +108,57 @@ func (h *OrderHandler) GetByID(c echo.Context) error {
 		return response.Error(c, http.StatusInternalServerError, "failed to get order", nil)
 	}
 	return response.Success(c, http.StatusOK, "OK", dto.ToOrderResponse(order))
+}
+
+// ListMine returns the authenticated customer's own orders — never guest
+// orders, even ones placed with the same email (see
+// docs/16-plan-konfirmasi-pesanan-diterima-review.md).
+func (h *OrderHandler) ListMine(c echo.Context) error {
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	perPage, _ := strconv.Atoi(c.QueryParam("per_page"))
+
+	result, err := h.orderUsecase.ListMyOrders(c.Request().Context(), currentUserID(c), page, perPage)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, "failed to list orders", nil)
+	}
+
+	return response.SuccessPaginated(c, http.StatusOK, dto.ToOrderResponses(result.Orders), response.Meta{
+		Page:       result.Page,
+		PerPage:    result.PerPage,
+		Total:      result.Total,
+		TotalPages: result.TotalPages,
+	})
+}
+
+// GetMine returns one order only if it belongs to the authenticated
+// customer — a 404 covers both "doesn't exist" and "not yours".
+func (h *OrderHandler) GetMine(c echo.Context) error {
+	order, err := h.orderUsecase.GetMyOrder(c.Request().Context(), currentUserID(c), c.Param("id"))
+	if err != nil {
+		if errors.Is(err, repository.ErrOrderNotFound) {
+			return response.Error(c, http.StatusNotFound, "order not found", nil)
+		}
+		return response.Error(c, http.StatusInternalServerError, "failed to get order", nil)
+	}
+	return response.Success(c, http.StatusOK, "OK", dto.ToOrderResponse(order))
+}
+
+// ConfirmReceived lets the authenticated customer self-report their package
+// arrived. It never changes Status — see
+// docs/16-plan-konfirmasi-pesanan-diterima-review.md for why.
+func (h *OrderHandler) ConfirmReceived(c echo.Context) error {
+	order, err := h.orderUsecase.ConfirmReceived(c.Request().Context(), currentUserID(c), c.Param("id"))
+	if err != nil {
+		switch {
+		case errors.Is(err, repository.ErrOrderNotFound):
+			return response.Error(c, http.StatusNotFound, "order not found", nil)
+		case errors.Is(err, usecase.ErrOrderNotEligibleForConfirmation):
+			return response.Error(c, http.StatusConflict, "order is not eligible for receipt confirmation yet", nil)
+		default:
+			return response.Error(c, http.StatusInternalServerError, "failed to confirm receipt", nil)
+		}
+	}
+	return response.Success(c, http.StatusOK, "Order marked as received", dto.ToOrderResponse(order))
 }
 
 func (h *OrderHandler) UpdateStatus(c echo.Context) error {

@@ -212,8 +212,8 @@ func (r *productRepository) Create(ctx context.Context, product *entity.Product)
 	defer tx.Rollback()
 
 	_, err = tx.NamedExecContext(ctx, `
-		INSERT INTO products (id, category_id, name, slug, description, price, compare_at_price, currency, maker, badge, stock, weight, is_active)
-		VALUES (:id, :category_id, :name, :slug, :description, :price, :compare_at_price, :currency, :maker, :badge, :stock, :weight, :is_active)
+		INSERT INTO products (id, category_id, name, slug, description, care_instructions, price, compare_at_price, currency, maker, badge, stock, weight, is_active)
+		VALUES (:id, :category_id, :name, :slug, :description, :care_instructions, :price, :compare_at_price, :currency, :maker, :badge, :stock, :weight, :is_active)
 	`, product)
 	if err != nil {
 		return err
@@ -223,8 +223,8 @@ func (r *productRepository) Create(ctx context.Context, product *entity.Product)
 		product.Images[i].ProductID = product.ID
 		product.Images[i].SortOrder = uint(i)
 		if _, err := tx.NamedExecContext(ctx, `
-			INSERT INTO product_images (id, product_id, url, alt_text, sort_order)
-			VALUES (:id, :product_id, :url, :alt_text, :sort_order)
+			INSERT INTO product_images (id, product_id, url, alt_text, angle, sort_order)
+			VALUES (:id, :product_id, :url, :alt_text, :angle, :sort_order)
 		`, product.Images[i]); err != nil {
 			return err
 		}
@@ -267,6 +267,7 @@ func (r *productRepository) Update(ctx context.Context, product *entity.Product)
 			category_id = :category_id,
 			name = :name,
 			description = :description,
+			care_instructions = :care_instructions,
 			price = :price,
 			compare_at_price = :compare_at_price,
 			maker = :maker,
@@ -287,8 +288,8 @@ func (r *productRepository) Update(ctx context.Context, product *entity.Product)
 		product.Images[i].ProductID = product.ID
 		product.Images[i].SortOrder = uint(i)
 		if _, err := tx.NamedExecContext(ctx, `
-			INSERT INTO product_images (id, product_id, url, alt_text, sort_order)
-			VALUES (:id, :product_id, :url, :alt_text, :sort_order)
+			INSERT INTO product_images (id, product_id, url, alt_text, angle, sort_order)
+			VALUES (:id, :product_id, :url, :alt_text, :angle, :sort_order)
 		`, product.Images[i]); err != nil {
 			return err
 		}

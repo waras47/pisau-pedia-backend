@@ -96,3 +96,6 @@ nambah tabel yang mereferensikan keduanya).
 > Perbaikan keandalan pembayaran (idempotency key, race condition webhook,
 > cek status manual) ada di
 > [15-keandalan-pembayaran-idempotency.md](15-keandalan-pembayaran-idempotency.md).
+> Halaman "Pesanan Saya", konfirmasi "Pesanan Diterima", dan trigger
+> review per-produk sudah selesai & diverifikasi, didokumentasikan di
+> [16-plan-konfirmasi-pesanan-diterima-review.md](16-plan-konfirmasi-pesanan-diterima-review.md).

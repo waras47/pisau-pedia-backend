@@ -18,6 +18,19 @@ type CreateReviewInput struct {
 	CustomerEmail *string
 	Rating        uint
 	Content       string
+	// Status is only ever set by the admin-create path (public review
+	// submission never sets it) — empty means "pending".
+	Status entity.ReviewStatus
+}
+
+// UpdateReviewInput fields are pointers so admin edits can be partial —
+// nil means "leave as-is".
+type UpdateReviewInput struct {
+	CustomerName  *string
+	CustomerEmail *string
+	Rating        *uint
+	Content       *string
+	Status        *entity.ReviewStatus
 }
 
 type ReviewListInput struct {
@@ -54,6 +67,11 @@ func (u *ReviewUsecase) CreateReview(ctx context.Context, input CreateReviewInpu
 		return nil, err
 	}
 
+	status := input.Status
+	if status == "" {
+		status = entity.ReviewStatusPending
+	}
+
 	review := &entity.Review{
 		ID:            uuid.New().String(),
 		ProductID:     product.ID,
@@ -61,11 +79,23 @@ func (u *ReviewUsecase) CreateReview(ctx context.Context, input CreateReviewInpu
 		CustomerEmail: input.CustomerEmail,
 		Rating:        input.Rating,
 		Content:       input.Content,
-		Status:        entity.ReviewStatusPending,
+		Status:        status,
 	}
 	if err := u.reviewRepo.Create(ctx, review); err != nil {
 		return nil, err
 	}
+
+	// Only ever matters when an admin creates a review directly as
+	// "approved" — public submissions always start pending and don't move
+	// the needle here.
+	stats, err := u.reviewRepo.GetApprovedStatsByProduct(ctx, review.ProductID)
+	if err != nil {
+		return nil, err
+	}
+	if err := u.productRepo.UpdateRatingStats(ctx, review.ProductID, stats.RatingAvg, stats.ReviewCount); err != nil {
+		return nil, err
+	}
+
 	return review, nil
 }
 
@@ -100,19 +130,38 @@ func (u *ReviewUsecase) ListReviews(ctx context.Context, input ReviewListInput) 
 	return &ReviewListResult{Reviews: reviews, Page: page, PerPage: perPage, Total: total, TotalPages: totalPages}, nil
 }
 
-// UpdateReviewStatus updates the review's moderation status, then recomputes
-// the parent product's rating_avg/review_count from approved reviews —
-// those denormalized columns only ever reflect reality through this path.
-func (u *ReviewUsecase) UpdateReviewStatus(ctx context.Context, id string, status entity.ReviewStatus) (*entity.Review, error) {
+// UpdateReview applies a partial edit (any subset of fields) to a review,
+// then recomputes the parent product's rating_avg/review_count from
+// approved reviews — those denormalized columns only ever reflect reality
+// through this path, so this runs regardless of which fields changed.
+func (u *ReviewUsecase) UpdateReview(ctx context.Context, id string, input UpdateReviewInput) (*entity.Review, error) {
 	review, err := u.reviewRepo.FindByID(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 
-	if err := u.reviewRepo.UpdateStatus(ctx, id, status); err != nil {
+	if input.CustomerName != nil {
+		review.CustomerName = *input.CustomerName
+	}
+	if input.CustomerEmail != nil {
+		review.CustomerEmail = input.CustomerEmail
+	}
+	if input.Rating != nil {
+		if *input.Rating < 1 || *input.Rating > 5 {
+			return nil, ErrInvalidRating
+		}
+		review.Rating = *input.Rating
+	}
+	if input.Content != nil {
+		review.Content = *input.Content
+	}
+	if input.Status != nil {
+		review.Status = *input.Status
+	}
+
+	if err := u.reviewRepo.Update(ctx, review); err != nil {
 		return nil, err
 	}
-	review.Status = status
 
 	stats, err := u.reviewRepo.GetApprovedStatsByProduct(ctx, review.ProductID)
 	if err != nil {

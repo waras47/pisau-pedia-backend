@@ -43,6 +43,15 @@ func (r *orderRepository) FindAll(ctx context.Context, filter repository.OrderFi
 		conditions = append(conditions, "customer_email = ?")
 		args = append(args, filter.CustomerEmail)
 	}
+	if filter.UserID != "" {
+		conditions = append(conditions, "user_id = ?")
+		args = append(args, filter.UserID)
+	}
+	if filter.Search != "" {
+		conditions = append(conditions, "(id LIKE ? OR customer_name LIKE ? OR customer_email LIKE ?)")
+		like := "%" + filter.Search + "%"
+		args = append(args, like, like, like)
+	}
 
 	where := "1=1"
 	if len(conditions) > 0 {
@@ -230,6 +239,25 @@ func (r *orderRepository) ExpireIfUnpaid(ctx context.Context, id string) (bool, 
 	return affected > 0, nil
 }
 
+func (r *orderRepository) ConfirmReceivedIfEligible(ctx context.Context, orderID, userID string) (bool, error) {
+	res, err := r.db.ExecContext(ctx, `
+		UPDATE orders SET customer_confirmed_at = NOW()
+		WHERE id = ? AND user_id = ? AND payment_status = ?
+			AND status IN (?, ?, ?) AND customer_confirmed_at IS NULL
+	`,
+		orderID, userID, entity.PaymentStatusPaid,
+		entity.OrderStatusProcessing, entity.OrderStatusReadyForDelivery, entity.OrderStatusDelivered,
+	)
+	if err != nil {
+		return false, err
+	}
+	affected, err := res.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+	return affected > 0, nil
+}
+
 func (r *orderRepository) GetSalesSummary(ctx context.Context, from, to time.Time) (*repository.SalesSummary, error) {
 	summary := &repository.SalesSummary{StatusCounts: map[string]int64{}}
 
@@ -242,6 +270,12 @@ func (r *orderRepository) GetSalesSummary(ctx context.Context, from, to time.Tim
 
 	if err := r.db.GetContext(ctx, &summary.TotalOrders, `
 		SELECT COUNT(*) FROM orders WHERE created_at BETWEEN ? AND ?
+	`, from, to); err != nil {
+		return nil, err
+	}
+
+	if err := r.db.GetContext(ctx, &summary.PaidOrders, `
+		SELECT COUNT(*) FROM orders WHERE payment_status = 'paid' AND created_at BETWEEN ? AND ?
 	`, from, to); err != nil {
 		return nil, err
 	}

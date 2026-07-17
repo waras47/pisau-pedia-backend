@@ -71,34 +71,35 @@ type OrderItemResponse struct {
 }
 
 type OrderResponse struct {
-	ID                 string              `json:"id"`
-	Status             string              `json:"status"`
-	PaymentStatus      string              `json:"payment_status"`
-	CustomerName       string              `json:"customer_name"`
-	CustomerEmail      string              `json:"customer_email"`
-	CustomerPhone      string              `json:"customer_phone,omitempty"`
-	ShippingAddress    string              `json:"shipping_address"`
-	ShippingCity       string              `json:"shipping_city"`
-	ShippingProvince   string              `json:"shipping_province,omitempty"`
-	ShippingPostalCode string              `json:"shipping_postal_code"`
-	Subtotal           int64               `json:"subtotal"`
-	Total              int64               `json:"total"`
-	Currency           string              `json:"currency"`
-	CouponCode         string              `json:"coupon_code,omitempty"`
-	DiscountAmount     int64               `json:"discount_amount,omitempty"`
-	ShippingCost       int64               `json:"shipping_cost"`
-	ShippingCourier    string              `json:"shipping_courier,omitempty"`
-	ShippingService    string              `json:"shipping_service,omitempty"`
-	ShippingETD        string              `json:"shipping_etd,omitempty"`
-	PaymentType        string              `json:"payment_type,omitempty"`
-	PaymentChannel     string              `json:"payment_channel,omitempty"`
-	PaymentVANumber    string              `json:"payment_va_number,omitempty"`
-	PaymentQRString    string              `json:"payment_qr_string,omitempty"`
-	PaymentURL         string              `json:"payment_url,omitempty"`
-	PaymentExpiry      string              `json:"payment_expiry,omitempty"`
-	InvoiceURL         string              `json:"invoice_url,omitempty"`
-	CreatedAt          string              `json:"created_at"`
-	Items              []OrderItemResponse `json:"items,omitempty"`
+	ID                  string              `json:"id"`
+	Status              string              `json:"status"`
+	PaymentStatus       string              `json:"payment_status"`
+	CustomerName        string              `json:"customer_name"`
+	CustomerEmail       string              `json:"customer_email"`
+	CustomerPhone       string              `json:"customer_phone,omitempty"`
+	ShippingAddress     string              `json:"shipping_address"`
+	ShippingCity        string              `json:"shipping_city"`
+	ShippingProvince    string              `json:"shipping_province,omitempty"`
+	ShippingPostalCode  string              `json:"shipping_postal_code"`
+	Subtotal            int64               `json:"subtotal"`
+	Total               int64               `json:"total"`
+	Currency            string              `json:"currency"`
+	CouponCode          string              `json:"coupon_code,omitempty"`
+	DiscountAmount      int64               `json:"discount_amount,omitempty"`
+	ShippingCost        int64               `json:"shipping_cost"`
+	ShippingCourier     string              `json:"shipping_courier,omitempty"`
+	ShippingService     string              `json:"shipping_service,omitempty"`
+	ShippingETD         string              `json:"shipping_etd,omitempty"`
+	PaymentType         string              `json:"payment_type,omitempty"`
+	PaymentChannel      string              `json:"payment_channel,omitempty"`
+	PaymentVANumber     string              `json:"payment_va_number,omitempty"`
+	PaymentQRString     string              `json:"payment_qr_string,omitempty"`
+	PaymentURL          string              `json:"payment_url,omitempty"`
+	PaymentExpiry       string              `json:"payment_expiry,omitempty"`
+	InvoiceURL          string              `json:"invoice_url,omitempty"`
+	CustomerConfirmedAt string              `json:"customer_confirmed_at,omitempty"`
+	CreatedAt           string              `json:"created_at"`
+	Items               []OrderItemResponse `json:"items,omitempty"`
 }
 
 func ToOrderResponse(o *entity.Order) OrderResponse {
@@ -157,6 +158,9 @@ func ToOrderResponse(o *entity.Order) OrderResponse {
 	if o.XenditInvoiceURL != nil {
 		resp.InvoiceURL = *o.XenditInvoiceURL
 	}
+	if o.CustomerConfirmedAt != nil {
+		resp.CustomerConfirmedAt = o.CustomerConfirmedAt.Format("2006-01-02T15:04:05Z07:00")
+	}
 	for _, i := range o.Items {
 		resp.Items = append(resp.Items, OrderItemResponse{
 			ProductName: i.ProductName,
@@ -189,10 +193,14 @@ type TopProductResponse struct {
 }
 
 type SalesReportResponse struct {
-	From         string                 `json:"from"`
-	To           string                 `json:"to"`
-	TotalRevenue int64                  `json:"total_revenue"`
-	TotalOrders  int64                  `json:"total_orders"`
+	From         string `json:"from"`
+	To           string `json:"to"`
+	TotalRevenue int64  `json:"total_revenue"`
+	TotalOrders  int64  `json:"total_orders"`
+	// PaidOrders is how many of TotalOrders actually contributed to
+	// TotalRevenue/DailyRevenue/TopProducts (all paid-only) — shown
+	// alongside TotalOrders so the two numbers don't look inconsistent.
+	PaidOrders   int64                  `json:"paid_orders"`
 	StatusCounts map[string]int64       `json:"status_counts"`
 	DailyRevenue []DailyRevenueResponse `json:"daily_revenue"`
 	TopProducts  []TopProductResponse   `json:"top_products"`
@@ -204,6 +212,7 @@ func ToSalesReportResponse(r *usecase.SalesReportResult) SalesReportResponse {
 		To:           r.To.Format("2006-01-02"),
 		TotalRevenue: r.Summary.TotalRevenue,
 		TotalOrders:  r.Summary.TotalOrders,
+		PaidOrders:   r.Summary.PaidOrders,
 		StatusCounts: r.Summary.StatusCounts,
 	}
 	for _, d := range r.Summary.DailyRevenue {

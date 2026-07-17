@@ -69,6 +69,31 @@ func (h *ReviewHandler) ListPublic(c echo.Context) error {
 	})
 }
 
+// CreateAdmin lets an admin insert a review directly (e.g. one collected
+// offline), optionally setting the initial status instead of always
+// starting "pending" like the public Create endpoint.
+func (h *ReviewHandler) CreateAdmin(c echo.Context) error {
+	var req dto.AdminCreateReviewRequest
+	if err := c.Bind(&req); err != nil {
+		return response.Error(c, http.StatusBadRequest, "invalid request body", nil)
+	}
+	if err := c.Validate(&req); err != nil {
+		return response.Error(c, http.StatusUnprocessableEntity, "validation failed", err.Error())
+	}
+
+	review, err := h.usecase.CreateReview(c.Request().Context(), req.ToInput())
+	if err != nil {
+		if errors.Is(err, repository.ErrProductNotFound) {
+			return response.Error(c, http.StatusNotFound, "product not found", nil)
+		}
+		if errors.Is(err, usecase.ErrInvalidRating) {
+			return response.Error(c, http.StatusUnprocessableEntity, "rating must be between 1 and 5", nil)
+		}
+		return response.Error(c, http.StatusInternalServerError, "failed to create review", nil)
+	}
+	return response.Success(c, http.StatusCreated, "Review created", dto.ToReviewResponse(review))
+}
+
 // List is the admin moderation view — any status, filterable.
 func (h *ReviewHandler) List(c echo.Context) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
@@ -92,8 +117,8 @@ func (h *ReviewHandler) List(c echo.Context) error {
 	})
 }
 
-func (h *ReviewHandler) UpdateStatus(c echo.Context) error {
-	var req dto.UpdateReviewStatusRequest
+func (h *ReviewHandler) Update(c echo.Context) error {
+	var req dto.UpdateReviewRequest
 	if err := c.Bind(&req); err != nil {
 		return response.Error(c, http.StatusBadRequest, "invalid request body", nil)
 	}
@@ -101,10 +126,13 @@ func (h *ReviewHandler) UpdateStatus(c echo.Context) error {
 		return response.Error(c, http.StatusUnprocessableEntity, "validation failed", err.Error())
 	}
 
-	review, err := h.usecase.UpdateReviewStatus(c.Request().Context(), c.Param("id"), entity.ReviewStatus(req.Status))
+	review, err := h.usecase.UpdateReview(c.Request().Context(), c.Param("id"), req.ToInput())
 	if err != nil {
 		if errors.Is(err, repository.ErrReviewNotFound) {
 			return response.Error(c, http.StatusNotFound, "review not found", nil)
+		}
+		if errors.Is(err, usecase.ErrInvalidRating) {
+			return response.Error(c, http.StatusUnprocessableEntity, "rating must be between 1 and 5", nil)
 		}
 		return response.Error(c, http.StatusInternalServerError, "failed to update review", nil)
 	}

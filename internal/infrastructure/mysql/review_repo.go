@@ -93,8 +93,12 @@ func (r *reviewRepository) Create(ctx context.Context, review *entity.Review) er
 	return err
 }
 
-func (r *reviewRepository) UpdateStatus(ctx context.Context, id string, status entity.ReviewStatus) error {
-	_, err := r.db.ExecContext(ctx, `UPDATE reviews SET status = ? WHERE id = ?`, status, id)
+func (r *reviewRepository) Update(ctx context.Context, review *entity.Review) error {
+	_, err := r.db.ExecContext(ctx, `
+		UPDATE reviews
+		SET customer_name = ?, customer_email = ?, rating = ?, content = ?, status = ?
+		WHERE id = ?
+	`, review.CustomerName, review.CustomerEmail, review.Rating, review.Content, review.Status, review.ID)
 	return err
 }
 

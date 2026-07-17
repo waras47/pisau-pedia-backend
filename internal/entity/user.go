@@ -13,6 +13,10 @@ type User struct {
 	ID              string     `db:"id"`
 	Email           string     `db:"email"`
 	PasswordHash    string     `db:"password_hash" json:"-"`
+	// GoogleID is the Google account's stable "sub" claim, set once a user
+	// signs in via Google. A user who registered with email/password first
+	// can still link Google later — same row, GoogleID just gets filled in.
+	GoogleID        *string    `db:"google_id" json:"-"`
 	FullName        string     `db:"full_name"`
 	Phone           *string    `db:"phone"`
 	Role            Role       `db:"role"`

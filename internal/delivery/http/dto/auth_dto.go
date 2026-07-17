@@ -25,6 +25,10 @@ type LogoutRequest struct {
 	RefreshToken string `json:"refresh_token" validate:"required"`
 }
 
+type GoogleExchangeRequest struct {
+	Code string `json:"code" validate:"required"`
+}
+
 type UserResponse struct {
 	ID       string `json:"id"`
 	Email    string `json:"email"`

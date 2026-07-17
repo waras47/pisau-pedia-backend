@@ -21,14 +21,14 @@ func NewUserRepository(db *sqlx.DB) repository.UserRepository {
 }
 
 const userColumns = `
-	id, email, password_hash, full_name, phone, role,
+	id, email, password_hash, google_id, full_name, phone, role,
 	avatar_url, is_active, email_verified_at, created_at, updated_at
 `
 
 func (r *userRepository) Create(ctx context.Context, user *entity.User) error {
 	query := `
-		INSERT INTO users (id, email, password_hash, full_name, phone, role, avatar_url, is_active)
-		VALUES (:id, :email, :password_hash, :full_name, :phone, :role, :avatar_url, :is_active)
+		INSERT INTO users (id, email, password_hash, google_id, full_name, phone, role, avatar_url, is_active)
+		VALUES (:id, :email, :password_hash, :google_id, :full_name, :phone, :role, :avatar_url, :is_active)
 	`
 	_, err := r.db.NamedExecContext(ctx, query, user)
 	return err
@@ -38,6 +38,19 @@ func (r *userRepository) FindByEmail(ctx context.Context, email string) (*entity
 	var user entity.User
 	query := `SELECT ` + userColumns + ` FROM users WHERE email = ?`
 	err := r.db.GetContext(ctx, &user, query, email)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, repository.ErrUserNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
+}
+
+func (r *userRepository) FindByGoogleID(ctx context.Context, googleID string) (*entity.User, error) {
+	var user entity.User
+	query := `SELECT ` + userColumns + ` FROM users WHERE google_id = ?`
+	err := r.db.GetContext(ctx, &user, query, googleID)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, repository.ErrUserNotFound
 	}
@@ -110,6 +123,7 @@ func (r *userRepository) Update(ctx context.Context, user *entity.User) error {
 			role = :role,
 			avatar_url = :avatar_url,
 			password_hash = :password_hash,
+			google_id = :google_id,
 			is_active = :is_active
 		WHERE id = :id
 	`

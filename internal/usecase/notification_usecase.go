@@ -111,6 +111,16 @@ func (u *NotificationUsecase) NotifyOrderPaid(ctx context.Context, order *entity
 		ptr(order.ID), ptr("/admin/orders"))
 }
 
+// NotifyOrderReceived fires when a customer self-confirms their package
+// arrived — informational for admin, doesn't imply Status changed (see
+// docs/16-plan-konfirmasi-pesanan-diterima-review.md).
+func (u *NotificationUsecase) NotifyOrderReceived(ctx context.Context, order *entity.Order) error {
+	return u.create(ctx, entity.NotificationModuleOrder, "order_received",
+		"Pesanan Dikonfirmasi Diterima",
+		fmt.Sprintf("Pesanan #%s dikonfirmasi diterima oleh %s", order.ID[:8], order.CustomerName),
+		ptr(order.ID), ptr("/admin/orders"))
+}
+
 func (u *NotificationUsecase) NotifyServiceRequestCreated(ctx context.Context, req *entity.ServiceRequest) error {
 	return u.create(ctx, entity.NotificationModuleService, "service_created",
 		"Permintaan Servis Baru",

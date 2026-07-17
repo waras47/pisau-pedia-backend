@@ -10,51 +10,77 @@ type ProductSpecRequest struct {
 	Value string `json:"value" validate:"required"`
 }
 
+// ProductImageRequest lets an image optionally be tagged with one of the 4
+// admin photo-capture angles — untagged images just join the general
+// gallery.
+type ProductImageRequest struct {
+	URL   string  `json:"url" validate:"required,url"`
+	Angle *string `json:"angle" validate:"omitempty,oneof=front back side top"`
+}
+
 type CreateProductRequest struct {
-	CategoryID     *string              `json:"category_id" validate:"omitempty,uuid"`
-	Name           string               `json:"name" validate:"required,min=2"`
-	Slug           string               `json:"slug" validate:"omitempty"`
-	Description    *string              `json:"description"`
-	Price          int64                `json:"price" validate:"required,min=0"`
-	CompareAtPrice *int64               `json:"compare_at_price" validate:"omitempty,min=0"`
-	Maker          *string              `json:"maker"`
-	Badge          *string              `json:"badge" validate:"omitempty,oneof=new sale sold-out"`
-	Stock          *uint                `json:"stock" validate:"omitempty,min=0"`
-	Weight         *uint                `json:"weight" validate:"omitempty,min=0"`
-	Images         []string             `json:"images" validate:"omitempty,dive,url"`
-	Specs          []ProductSpecRequest `json:"specs" validate:"omitempty,dive"`
-	Highlights     []string             `json:"highlights" validate:"omitempty,dive,required"`
+	CategoryID       *string               `json:"category_id" validate:"omitempty,uuid"`
+	Name             string                `json:"name" validate:"required,min=2"`
+	Slug             string                `json:"slug" validate:"omitempty"`
+	Description      *string               `json:"description"`
+	CareInstructions *string               `json:"care_instructions"`
+	Price            int64                 `json:"price" validate:"required,min=0"`
+	CompareAtPrice   *int64                `json:"compare_at_price" validate:"omitempty,min=0"`
+	Maker            *string               `json:"maker"`
+	Badge            *string               `json:"badge" validate:"omitempty,oneof=new sale sold-out"`
+	Stock            *uint                 `json:"stock" validate:"omitempty,min=0"`
+	Weight           *uint                 `json:"weight" validate:"omitempty,min=0"`
+	Images           []ProductImageRequest `json:"images" validate:"omitempty,dive"`
+	Specs            []ProductSpecRequest  `json:"specs" validate:"omitempty,dive"`
+	Highlights       []string              `json:"highlights" validate:"omitempty,dive,required"`
 }
 
 type UpdateProductRequest struct {
-	CategoryID     *string              `json:"category_id" validate:"omitempty,uuid"`
-	Name           string               `json:"name" validate:"omitempty,min=2"`
-	Description    *string              `json:"description"`
-	Price          int64                `json:"price" validate:"omitempty,min=0"`
-	CompareAtPrice *int64               `json:"compare_at_price" validate:"omitempty,min=0"`
-	Maker          *string              `json:"maker"`
-	Badge          *string              `json:"badge" validate:"omitempty,oneof=new sale sold-out"`
-	Stock          *uint                `json:"stock" validate:"omitempty,min=0"`
-	Weight         *uint                `json:"weight" validate:"omitempty,min=0"`
-	IsActive       *bool                `json:"is_active"`
-	Images         []string             `json:"images" validate:"omitempty,dive,url"`
-	Specs          []ProductSpecRequest `json:"specs" validate:"omitempty,dive"`
-	Highlights     []string             `json:"highlights" validate:"omitempty,dive,required"`
+	CategoryID       *string               `json:"category_id" validate:"omitempty,uuid"`
+	Name             string                `json:"name" validate:"omitempty,min=2"`
+	Description      *string               `json:"description"`
+	CareInstructions *string               `json:"care_instructions"`
+	Price            int64                 `json:"price" validate:"omitempty,min=0"`
+	CompareAtPrice   *int64                `json:"compare_at_price" validate:"omitempty,min=0"`
+	Maker            *string               `json:"maker"`
+	Badge            *string               `json:"badge" validate:"omitempty,oneof=new sale sold-out"`
+	Stock            *uint                 `json:"stock" validate:"omitempty,min=0"`
+	Weight           *uint                 `json:"weight" validate:"omitempty,min=0"`
+	IsActive         *bool                 `json:"is_active"`
+	Images           []ProductImageRequest `json:"images" validate:"omitempty,dive"`
+	Specs            []ProductSpecRequest  `json:"specs" validate:"omitempty,dive"`
+	Highlights       []string              `json:"highlights" validate:"omitempty,dive,required"`
+}
+
+// toProductImageInputs preserves nil vs. empty-slice: UpdateProduct treats
+// a nil Images as "field omitted, leave as-is" (see usecase.ProductInput),
+// so an omitted `images` key in the request must stay nil here too, not
+// become an empty slice that would wipe out existing images.
+func toProductImageInputs(images []ProductImageRequest) []usecase.ProductImageInput {
+	if images == nil {
+		return nil
+	}
+	out := make([]usecase.ProductImageInput, 0, len(images))
+	for _, img := range images {
+		out = append(out, usecase.ProductImageInput{URL: img.URL, Angle: img.Angle})
+	}
+	return out
 }
 
 func (r CreateProductRequest) ToInput() usecase.ProductInput {
 	input := usecase.ProductInput{
-		CategoryID:     r.CategoryID,
-		Name:           r.Name,
-		Slug:           r.Slug,
-		Description:    r.Description,
-		Price:          r.Price,
-		CompareAtPrice: r.CompareAtPrice,
-		Maker:          r.Maker,
-		Stock:          r.Stock,
-		Weight:         r.Weight,
-		Images:         r.Images,
-		Highlights:     r.Highlights,
+		CategoryID:       r.CategoryID,
+		Name:             r.Name,
+		Slug:             r.Slug,
+		Description:      r.Description,
+		CareInstructions: r.CareInstructions,
+		Price:            r.Price,
+		CompareAtPrice:   r.CompareAtPrice,
+		Maker:            r.Maker,
+		Stock:            r.Stock,
+		Weight:           r.Weight,
+		Images:           toProductImageInputs(r.Images),
+		Highlights:       r.Highlights,
 	}
 	if r.Badge != nil {
 		badge := entity.Badge(*r.Badge)
@@ -68,17 +94,18 @@ func (r CreateProductRequest) ToInput() usecase.ProductInput {
 
 func (r UpdateProductRequest) ToInput() usecase.ProductInput {
 	input := usecase.ProductInput{
-		CategoryID:     r.CategoryID,
-		Name:           r.Name,
-		Description:    r.Description,
-		Price:          r.Price,
-		CompareAtPrice: r.CompareAtPrice,
-		Maker:          r.Maker,
-		Stock:          r.Stock,
-		Weight:         r.Weight,
-		IsActive:       r.IsActive,
-		Images:         r.Images,
-		Highlights:     r.Highlights,
+		CategoryID:       r.CategoryID,
+		Name:             r.Name,
+		Description:      r.Description,
+		CareInstructions: r.CareInstructions,
+		Price:            r.Price,
+		CompareAtPrice:   r.CompareAtPrice,
+		Maker:            r.Maker,
+		Stock:            r.Stock,
+		Weight:           r.Weight,
+		IsActive:         r.IsActive,
+		Images:           toProductImageInputs(r.Images),
+		Highlights:       r.Highlights,
 	}
 	if r.Badge != nil {
 		badge := entity.Badge(*r.Badge)
@@ -107,12 +134,24 @@ type ProductListItemResponse struct {
 	Image          string  `json:"image,omitempty"`
 }
 
+// ProductAngleImagesResponse surfaces the 4 admin photo-capture slots
+// individually so the storefront can render a fixed front/back/side/top
+// switcher instead of guessing from the general gallery order.
+type ProductAngleImagesResponse struct {
+	Front string `json:"front,omitempty"`
+	Back  string `json:"back,omitempty"`
+	Side  string `json:"side,omitempty"`
+	Top   string `json:"top,omitempty"`
+}
+
 type ProductDetailResponse struct {
 	ProductListItemResponse
-	Description string               `json:"description,omitempty"`
-	Images      []string             `json:"images"`
-	Specs       []ProductSpecRequest `json:"specs"`
-	Highlights  []string             `json:"highlights"`
+	Description      string                     `json:"description,omitempty"`
+	CareInstructions string                     `json:"care_instructions,omitempty"`
+	Images           []string                   `json:"images"`
+	AngleImages      ProductAngleImagesResponse `json:"angle_images"`
+	Specs            []ProductSpecRequest       `json:"specs"`
+	Highlights       []string                   `json:"highlights"`
 }
 
 func toProductListItem(p *entity.Product) ProductListItemResponse {
@@ -156,10 +195,26 @@ func ToProductDetailResponse(p *entity.Product) ProductDetailResponse {
 	if p.Description != nil {
 		resp.Description = *p.Description
 	}
+	if p.CareInstructions != nil {
+		resp.CareInstructions = *p.CareInstructions
+	}
 
 	resp.Images = make([]string, 0, len(p.Images))
 	for _, img := range p.Images {
 		resp.Images = append(resp.Images, img.URL)
+		if img.Angle == nil {
+			continue
+		}
+		switch *img.Angle {
+		case "front":
+			resp.AngleImages.Front = img.URL
+		case "back":
+			resp.AngleImages.Back = img.URL
+		case "side":
+			resp.AngleImages.Side = img.URL
+		case "top":
+			resp.AngleImages.Top = img.URL
+		}
 	}
 
 	resp.Specs = make([]ProductSpecRequest, 0, len(p.Specs))
