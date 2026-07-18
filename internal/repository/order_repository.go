@@ -24,8 +24,14 @@ type OrderFilter struct {
 }
 
 type DailyRevenuePoint struct {
-	Date    string `db:"date"`
-	Revenue int64  `db:"revenue"`
+	// Date scans as time.Time, not string, because DB_PARAMS has
+	// parseTime=true — MySQL DATE columns come back as time.Time under
+	// that driver setting. Format it explicitly at the DTO boundary
+	// (see ToSalesReportResponse) rather than typing this string and
+	// letting database/sql silently reformat it to a full RFC3339
+	// timestamp, which broke the frontend's plain-date lookup.
+	Date    time.Time `db:"date"`
+	Revenue int64     `db:"revenue"`
 }
 
 type TopProductPoint struct {

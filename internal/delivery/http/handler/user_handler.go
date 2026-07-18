@@ -46,6 +46,9 @@ func (h *UserHandler) UpdateProfile(c echo.Context) error {
 
 	user, err := h.userUsecase.UpdateProfile(c.Request().Context(), currentUserID(c), req.ToPatch())
 	if err != nil {
+		if errors.Is(err, usecase.ErrEmailAlreadyRegistered) {
+			return response.Error(c, http.StatusConflict, "email already registered", nil)
+		}
 		return response.Error(c, http.StatusInternalServerError, "failed to update profile", nil)
 	}
 	return response.Success(c, http.StatusOK, "Profile updated", dto.ToUserResponse(user))

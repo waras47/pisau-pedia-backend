@@ -7,6 +7,7 @@ import (
 
 type UpdateProfileRequest struct {
 	FullName  *string `json:"full_name" validate:"omitempty,min=2"`
+	Email     *string `json:"email" validate:"omitempty,email"`
 	Phone     *string `json:"phone" validate:"omitempty,min=8"`
 	AvatarURL *string `json:"avatar_url" validate:"omitempty,url"`
 }
@@ -14,6 +15,7 @@ type UpdateProfileRequest struct {
 func (r UpdateProfileRequest) ToPatch() usecase.ProfilePatch {
 	return usecase.ProfilePatch{
 		FullName:  r.FullName,
+		Email:     r.Email,
 		Phone:     r.Phone,
 		AvatarURL: r.AvatarURL,
 	}

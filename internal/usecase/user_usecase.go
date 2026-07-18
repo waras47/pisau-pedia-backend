@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"errors"
 
 	"github.com/google/uuid"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/entity"
@@ -11,6 +12,7 @@ import (
 
 type ProfilePatch struct {
 	FullName  *string
+	Email     *string
 	Phone     *string
 	AvatarURL *string
 }
@@ -144,6 +146,16 @@ func (u *UserUsecase) UpdateProfile(ctx context.Context, userID string, patch Pr
 		return nil, err
 	}
 
+	if patch.Email != nil && *patch.Email != user.Email {
+		existing, err := u.userRepo.FindByEmail(ctx, *patch.Email)
+		if err != nil && !errors.Is(err, repository.ErrUserNotFound) {
+			return nil, err
+		}
+		if existing != nil && existing.ID != user.ID {
+			return nil, ErrEmailAlreadyRegistered
+		}
+		user.Email = *patch.Email
+	}
 	if patch.FullName != nil {
 		user.FullName = *patch.FullName
 	}

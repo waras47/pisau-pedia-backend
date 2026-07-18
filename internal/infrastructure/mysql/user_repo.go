@@ -118,6 +118,7 @@ func (r *userRepository) FindAll(ctx context.Context, filter repository.UserFilt
 func (r *userRepository) Update(ctx context.Context, user *entity.User) error {
 	query := `
 		UPDATE users SET
+			email = :email,
 			full_name = :full_name,
 			phone = :phone,
 			role = :role,

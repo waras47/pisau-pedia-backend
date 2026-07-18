@@ -216,7 +216,7 @@ func ToSalesReportResponse(r *usecase.SalesReportResult) SalesReportResponse {
 		StatusCounts: r.Summary.StatusCounts,
 	}
 	for _, d := range r.Summary.DailyRevenue {
-		resp.DailyRevenue = append(resp.DailyRevenue, DailyRevenueResponse{Date: d.Date, Revenue: d.Revenue})
+		resp.DailyRevenue = append(resp.DailyRevenue, DailyRevenueResponse{Date: d.Date.Format("2006-01-02"), Revenue: d.Revenue})
 	}
 	for _, p := range r.Summary.TopProducts {
 		resp.TopProducts = append(resp.TopProducts, TopProductResponse{

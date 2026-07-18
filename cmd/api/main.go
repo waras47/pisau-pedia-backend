@@ -49,7 +49,7 @@ func main() {
 	e.Use(appmw.RequestLogger(log))
 	e.Use(appmw.Secure(cfg.App.Env == "production"))
 	e.Use(appmw.BodyLimit())
-	e.Use(appmw.CORS(cfg.FrontendURL))
+	e.Use(appmw.CORS(cfg.FrontendURL, cfg.App.Env != "production"))
 
 	// Repositories
 	userRepo := mysql.NewUserRepository(db)
