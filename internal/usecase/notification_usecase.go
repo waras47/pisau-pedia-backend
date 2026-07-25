@@ -86,6 +86,10 @@ func (u *NotificationUsecase) MarkAllAsRead(ctx context.Context) error {
 	return u.repo.MarkAllAsRead(ctx)
 }
 
+func (u *NotificationUsecase) Delete(ctx context.Context, id string) error {
+	return u.repo.Delete(ctx, id)
+}
+
 // --- Per-event helpers, called from other usecases after a successful mutation ---
 
 func ptr(s string) *string { return &s }

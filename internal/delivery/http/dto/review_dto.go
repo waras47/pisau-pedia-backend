@@ -6,7 +6,9 @@ import (
 )
 
 type CreateReviewRequest struct {
-	ProductSlug   string  `json:"product_slug" validate:"required"`
+	// ProductSlug is optional — omit it for a "shop review" about the
+	// store itself rather than a specific product.
+	ProductSlug   string  `json:"product_slug" validate:"omitempty"`
 	CustomerName  string  `json:"customer_name" validate:"required,min=2"`
 	CustomerEmail *string `json:"customer_email" validate:"omitempty,email"`
 	Rating        uint    `json:"rating" validate:"required,min=1,max=5"`
@@ -27,7 +29,7 @@ func (r CreateReviewRequest) ToInput() usecase.CreateReviewInput {
 // review collected offline). Unlike the public CreateReviewRequest, it may
 // set the initial status instead of always starting "pending".
 type AdminCreateReviewRequest struct {
-	ProductSlug   string  `json:"product_slug" validate:"required"`
+	ProductSlug   string  `json:"product_slug" validate:"omitempty"`
 	CustomerName  string  `json:"customer_name" validate:"required,min=2"`
 	CustomerEmail *string `json:"customer_email" validate:"omitempty,email"`
 	Rating        uint    `json:"rating" validate:"required,min=1,max=5"`

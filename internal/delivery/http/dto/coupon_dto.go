@@ -16,6 +16,7 @@ type CouponRequest struct {
 	StartsAt    *time.Time `json:"starts_at"`
 	EndsAt      *time.Time `json:"ends_at"`
 	IsActive    *bool      `json:"is_active"`
+	ShowPopup   *bool      `json:"show_popup"`
 	Description *string    `json:"description"`
 }
 
@@ -29,6 +30,7 @@ func (r CouponRequest) ToInput() usecase.CouponInput {
 		StartsAt:    r.StartsAt,
 		EndsAt:      r.EndsAt,
 		IsActive:    r.IsActive,
+		ShowPopup:   r.ShowPopup,
 		Description: r.Description,
 	}
 }
@@ -49,6 +51,7 @@ type CouponResponse struct {
 	StartsAt    *string `json:"starts_at,omitempty"`
 	EndsAt      *string `json:"ends_at,omitempty"`
 	IsActive    bool    `json:"is_active"`
+	ShowPopup   bool    `json:"show_popup"`
 	Description string  `json:"description,omitempty"`
 }
 
@@ -62,6 +65,7 @@ func ToCouponResponse(c *entity.Coupon) CouponResponse {
 		MaxUses:   c.MaxUses,
 		UsedCount: c.UsedCount,
 		IsActive:  c.IsActive,
+		ShowPopup: c.ShowPopup,
 	}
 	if c.StartsAt != nil {
 		s := c.StartsAt.Format("2006-01-02")
@@ -83,6 +87,25 @@ func ToCouponResponses(coupons []entity.Coupon) []CouponResponse {
 		out = append(out, ToCouponResponse(&coupons[i]))
 	}
 	return out
+}
+
+type PromoPopupResponse struct {
+	Type        string `json:"type"`
+	Value       int64  `json:"value"`
+	Code        string `json:"code"`
+	Description string `json:"description,omitempty"`
+}
+
+func ToPromoPopupResponse(c *entity.Coupon) PromoPopupResponse {
+	resp := PromoPopupResponse{
+		Type:  string(c.Type),
+		Value: c.Value,
+		Code:  c.Code,
+	}
+	if c.Description != nil {
+		resp.Description = *c.Description
+	}
+	return resp
 }
 
 type ValidateCouponResponse struct {

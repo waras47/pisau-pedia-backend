@@ -38,6 +38,7 @@ type ReviewListInput struct {
 	PerPage     int
 	ProductSlug string
 	Status      string
+	Scope       string
 }
 
 type ReviewListResult struct {
@@ -62,9 +63,15 @@ func (u *ReviewUsecase) CreateReview(ctx context.Context, input CreateReviewInpu
 		return nil, ErrInvalidRating
 	}
 
-	product, err := u.productRepo.FindBySlug(ctx, input.ProductSlug)
-	if err != nil {
-		return nil, err
+	// Empty ProductSlug means this is a "shop review" — feedback about the
+	// store itself, not tied to any product.
+	var productID *string
+	if input.ProductSlug != "" {
+		product, err := u.productRepo.FindBySlug(ctx, input.ProductSlug)
+		if err != nil {
+			return nil, err
+		}
+		productID = &product.ID
 	}
 
 	status := input.Status
@@ -74,7 +81,7 @@ func (u *ReviewUsecase) CreateReview(ctx context.Context, input CreateReviewInpu
 
 	review := &entity.Review{
 		ID:            uuid.New().String(),
-		ProductID:     product.ID,
+		ProductID:     productID,
 		CustomerName:  input.CustomerName,
 		CustomerEmail: input.CustomerEmail,
 		Rating:        input.Rating,
@@ -87,13 +94,15 @@ func (u *ReviewUsecase) CreateReview(ctx context.Context, input CreateReviewInpu
 
 	// Only ever matters when an admin creates a review directly as
 	// "approved" — public submissions always start pending and don't move
-	// the needle here.
-	stats, err := u.reviewRepo.GetApprovedStatsByProduct(ctx, review.ProductID)
-	if err != nil {
-		return nil, err
-	}
-	if err := u.productRepo.UpdateRatingStats(ctx, review.ProductID, stats.RatingAvg, stats.ReviewCount); err != nil {
-		return nil, err
+	// the needle here. Shop reviews have no product to recompute stats for.
+	if review.ProductID != nil {
+		stats, err := u.reviewRepo.GetApprovedStatsByProduct(ctx, *review.ProductID)
+		if err != nil {
+			return nil, err
+		}
+		if err := u.productRepo.UpdateRatingStats(ctx, *review.ProductID, stats.RatingAvg, stats.ReviewCount); err != nil {
+			return nil, err
+		}
 	}
 
 	return review, nil
@@ -117,6 +126,7 @@ func (u *ReviewUsecase) ListReviews(ctx context.Context, input ReviewListInput) 
 		PerPage:     perPage,
 		ProductSlug: input.ProductSlug,
 		Status:      input.Status,
+		Scope:       input.Scope,
 	})
 	if err != nil {
 		return nil, err
@@ -163,12 +173,14 @@ func (u *ReviewUsecase) UpdateReview(ctx context.Context, id string, input Updat
 		return nil, err
 	}
 
-	stats, err := u.reviewRepo.GetApprovedStatsByProduct(ctx, review.ProductID)
-	if err != nil {
-		return nil, err
-	}
-	if err := u.productRepo.UpdateRatingStats(ctx, review.ProductID, stats.RatingAvg, stats.ReviewCount); err != nil {
-		return nil, err
+	if review.ProductID != nil {
+		stats, err := u.reviewRepo.GetApprovedStatsByProduct(ctx, *review.ProductID)
+		if err != nil {
+			return nil, err
+		}
+		if err := u.productRepo.UpdateRatingStats(ctx, *review.ProductID, stats.RatingAvg, stats.ReviewCount); err != nil {
+			return nil, err
+		}
 	}
 
 	return review, nil
@@ -183,9 +195,12 @@ func (u *ReviewUsecase) DeleteReview(ctx context.Context, id string) error {
 		return err
 	}
 
-	stats, err := u.reviewRepo.GetApprovedStatsByProduct(ctx, review.ProductID)
+	if review.ProductID == nil {
+		return nil
+	}
+	stats, err := u.reviewRepo.GetApprovedStatsByProduct(ctx, *review.ProductID)
 	if err != nil {
 		return err
 	}
-	return u.productRepo.UpdateRatingStats(ctx, review.ProductID, stats.RatingAvg, stats.ReviewCount)
+	return u.productRepo.UpdateRatingStats(ctx, *review.ProductID, stats.RatingAvg, stats.ReviewCount)
 }

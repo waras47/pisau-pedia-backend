@@ -15,6 +15,7 @@ type CouponRepository interface {
 	FindAll(ctx context.Context, filter CouponFilter) ([]entity.Coupon, int64, error)
 	FindByID(ctx context.Context, id string) (*entity.Coupon, error)
 	FindByCode(ctx context.Context, code string) (*entity.Coupon, error)
+	FindPopup(ctx context.Context) (*entity.Coupon, error)
 	Create(ctx context.Context, coupon *entity.Coupon) error
 	Update(ctx context.Context, coupon *entity.Coupon) error
 	Delete(ctx context.Context, id string) error

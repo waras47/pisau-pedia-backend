@@ -69,3 +69,8 @@ func (r *notificationRepository) MarkAllAsRead(ctx context.Context) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE notifications SET is_read = 1 WHERE is_read = 0`)
 	return err
 }
+
+func (r *notificationRepository) Delete(ctx context.Context, id string) error {
+	_, err := r.db.ExecContext(ctx, `DELETE FROM notifications WHERE id = ?`, id)
+	return err
+}

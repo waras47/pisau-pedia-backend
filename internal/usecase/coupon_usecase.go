@@ -25,6 +25,7 @@ type CouponInput struct {
 	StartsAt    *time.Time
 	EndsAt      *time.Time
 	IsActive    *bool
+	ShowPopup   *bool
 	Description *string
 }
 
@@ -90,6 +91,9 @@ func (u *CouponUsecase) CreateCoupon(ctx context.Context, input CouponInput) (*e
 	if input.IsActive != nil {
 		coupon.IsActive = *input.IsActive
 	}
+	if input.ShowPopup != nil {
+		coupon.ShowPopup = *input.ShowPopup
+	}
 	if err := u.couponRepo.Create(ctx, coupon); err != nil {
 		return nil, err
 	}
@@ -113,6 +117,9 @@ func (u *CouponUsecase) UpdateCoupon(ctx context.Context, id string, input Coupo
 	if input.IsActive != nil {
 		coupon.IsActive = *input.IsActive
 	}
+	if input.ShowPopup != nil {
+		coupon.ShowPopup = *input.ShowPopup
+	}
 
 	if err := u.couponRepo.Update(ctx, coupon); err != nil {
 		return nil, err
@@ -125,6 +132,10 @@ func (u *CouponUsecase) DeleteCoupon(ctx context.Context, id string) error {
 		return err
 	}
 	return u.couponRepo.Delete(ctx, id)
+}
+
+func (u *CouponUsecase) GetPopupCoupon(ctx context.Context) (*entity.Coupon, error) {
+	return u.couponRepo.FindPopup(ctx)
 }
 
 // ValidateCoupon is shared by the storefront "apply coupon" preview endpoint

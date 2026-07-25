@@ -62,3 +62,10 @@ func (h *NotificationHandler) MarkAllAsRead(c echo.Context) error {
 	}
 	return response.Success(c, http.StatusOK, "All notifications marked as read", nil)
 }
+
+func (h *NotificationHandler) Delete(c echo.Context) error {
+	if err := h.usecase.Delete(c.Request().Context(), c.Param("id")); err != nil {
+		return response.Error(c, http.StatusInternalServerError, "failed to delete notification", nil)
+	}
+	return response.Success(c, http.StatusOK, "Notification deleted", nil)
+}

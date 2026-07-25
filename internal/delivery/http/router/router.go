@@ -65,6 +65,7 @@ func Register(e *echo.Echo, deps Dependencies) {
 	v1.GET("/reviews", deps.ReviewHandler.ListPublic)
 	v1.POST("/reviews", deps.ReviewHandler.Create)
 	v1.POST("/coupons/validate", deps.CouponHandler.Validate)
+	v1.GET("/coupons/promo-popup", deps.CouponHandler.GetPromoPopup)
 	v1.POST("/newsletter/subscribe", deps.NewsletterHandler.Subscribe)
 	v1.GET("/shipping/destinations", deps.ShippingHandler.SearchDestinations)
 	v1.POST("/shipping/cost", deps.ShippingHandler.CalculateCost)
@@ -118,6 +119,7 @@ func Register(e *echo.Echo, deps Dependencies) {
 	admin.GET("/notifications/unread-count", deps.NotificationHandler.UnreadCount)
 	admin.PATCH("/notifications/:id/read", deps.NotificationHandler.MarkAsRead)
 	admin.PATCH("/notifications/read-all", deps.NotificationHandler.MarkAllAsRead)
+	admin.DELETE("/notifications/:id", deps.NotificationHandler.Delete)
 
 	admin.GET("/search", deps.SearchHandler.Global)
 }

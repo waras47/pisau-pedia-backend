@@ -12,7 +12,9 @@ const (
 
 type Review struct {
 	ID            string       `db:"id"`
-	ProductID     string       `db:"product_id"`
+	// ProductID is nil for a "shop review" — feedback about the store
+	// itself (shipping, service, packaging) rather than any one product.
+	ProductID     *string      `db:"product_id"`
 	CustomerName  string       `db:"customer_name"`
 	CustomerEmail *string      `db:"customer_email"`
 	Rating        uint         `db:"rating"`

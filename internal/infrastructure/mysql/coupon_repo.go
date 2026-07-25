@@ -58,10 +58,28 @@ func (r *couponRepository) FindByCode(ctx context.Context, code string) (*entity
 	return &coupon, nil
 }
 
+func (r *couponRepository) FindPopup(ctx context.Context) (*entity.Coupon, error) {
+	var coupon entity.Coupon
+	if err := r.db.GetContext(ctx, &coupon, `
+		SELECT * FROM coupons
+		WHERE show_popup = TRUE AND is_active = TRUE
+			AND (starts_at IS NULL OR starts_at <= NOW())
+			AND (ends_at IS NULL OR ends_at >= NOW())
+			AND (max_uses IS NULL OR used_count < max_uses)
+		LIMIT 1
+	`); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			return nil, repository.ErrCouponNotFound
+		}
+		return nil, err
+	}
+	return &coupon, nil
+}
+
 func (r *couponRepository) Create(ctx context.Context, coupon *entity.Coupon) error {
 	_, err := r.db.NamedExecContext(ctx, `
-		INSERT INTO coupons (id, code, type, value, min_order, max_uses, starts_at, ends_at, is_active, description)
-		VALUES (:id, :code, :type, :value, :min_order, :max_uses, :starts_at, :ends_at, :is_active, :description)
+		INSERT INTO coupons (id, code, type, value, min_order, max_uses, starts_at, ends_at, is_active, show_popup, description)
+		VALUES (:id, :code, :type, :value, :min_order, :max_uses, :starts_at, :ends_at, :is_active, :show_popup, :description)
 	`, coupon)
 	return err
 }
@@ -71,7 +89,7 @@ func (r *couponRepository) Update(ctx context.Context, coupon *entity.Coupon) er
 		UPDATE coupons SET
 			code = :code, type = :type, value = :value, min_order = :min_order,
 			max_uses = :max_uses, starts_at = :starts_at, ends_at = :ends_at,
-			is_active = :is_active, description = :description
+			is_active = :is_active, show_popup = :show_popup, description = :description
 		WHERE id = :id
 	`, coupon)
 	return err

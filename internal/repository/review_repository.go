@@ -11,6 +11,9 @@ type ReviewFilter struct {
 	PerPage     int
 	ProductSlug string
 	Status      string
+	// Scope narrows to "product" (has a product_id) or "shop" (no
+	// product_id) reviews. Empty means both.
+	Scope string
 }
 
 type ProductRatingStats struct {

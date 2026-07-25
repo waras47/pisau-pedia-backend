@@ -1,0 +1,1 @@
+ALTER TABLE reviews MODIFY COLUMN product_id CHAR(36) NULL;

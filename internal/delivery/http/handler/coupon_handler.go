@@ -83,6 +83,17 @@ func (h *CouponHandler) Delete(c echo.Context) error {
 	return response.Success(c, http.StatusOK, "Coupon deleted", nil)
 }
 
+func (h *CouponHandler) GetPromoPopup(c echo.Context) error {
+	coupon, err := h.usecase.GetPopupCoupon(c.Request().Context())
+	if err != nil {
+		if errors.Is(err, repository.ErrCouponNotFound) {
+			return response.Success(c, http.StatusOK, "No active promo popup", nil)
+		}
+		return response.Error(c, http.StatusInternalServerError, "failed to get promo popup", nil)
+	}
+	return response.Success(c, http.StatusOK, "OK", dto.ToPromoPopupResponse(coupon))
+}
+
 func (h *CouponHandler) Validate(c echo.Context) error {
 	var req dto.ValidateCouponRequest
 	if err := c.Bind(&req); err != nil {

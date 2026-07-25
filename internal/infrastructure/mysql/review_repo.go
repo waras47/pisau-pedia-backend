@@ -33,15 +33,23 @@ func (r *reviewRepository) FindAll(ctx context.Context, filter repository.Review
 		conditions = append(conditions, "p.slug = ?")
 		args = append(args, filter.ProductSlug)
 	}
+	switch filter.Scope {
+	case "product":
+		conditions = append(conditions, "r.product_id IS NOT NULL")
+	case "shop":
+		conditions = append(conditions, "r.product_id IS NULL")
+	}
 
 	where := "1=1"
 	if len(conditions) > 0 {
 		where = strings.Join(conditions, " AND ")
 	}
 
+	// LEFT JOIN (not JOIN) so shop reviews — which have no product_id —
+	// still come back, just with product_name/product_slug left NULL.
 	countQuery := fmt.Sprintf(`
 		SELECT COUNT(*) FROM reviews r
-		JOIN products p ON p.id = r.product_id
+		LEFT JOIN products p ON p.id = r.product_id
 		WHERE %s
 	`, where)
 	var total int64
@@ -53,7 +61,7 @@ func (r *reviewRepository) FindAll(ctx context.Context, filter repository.Review
 	listQuery := fmt.Sprintf(`
 		SELECT r.*, p.name AS product_name, p.slug AS product_slug
 		FROM reviews r
-		JOIN products p ON p.id = r.product_id
+		LEFT JOIN products p ON p.id = r.product_id
 		WHERE %s
 		ORDER BY r.created_at DESC
 		LIMIT ? OFFSET ?
@@ -73,7 +81,7 @@ func (r *reviewRepository) FindByID(ctx context.Context, id string) (*entity.Rev
 	query := `
 		SELECT r.*, p.name AS product_name, p.slug AS product_slug
 		FROM reviews r
-		JOIN products p ON p.id = r.product_id
+		LEFT JOIN products p ON p.id = r.product_id
 		WHERE r.id = ?
 	`
 	if err := r.db.GetContext(ctx, &review, query, id); err != nil {

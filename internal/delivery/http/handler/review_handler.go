@@ -56,6 +56,7 @@ func (h *ReviewHandler) ListPublic(c echo.Context) error {
 		PerPage:     perPage,
 		ProductSlug: c.QueryParam("product_slug"),
 		Status:      string(entity.ReviewStatusApproved),
+		Scope:       c.QueryParam("scope"),
 	})
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, "failed to list reviews", nil)
@@ -104,6 +105,7 @@ func (h *ReviewHandler) List(c echo.Context) error {
 		PerPage:     perPage,
 		ProductSlug: c.QueryParam("product_slug"),
 		Status:      c.QueryParam("status"),
+		Scope:       c.QueryParam("scope"),
 	})
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, "failed to list reviews", nil)

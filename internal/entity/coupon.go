@@ -21,6 +21,7 @@ type Coupon struct {
 	StartsAt    *time.Time `db:"starts_at"`
 	EndsAt      *time.Time `db:"ends_at"`
 	IsActive    bool       `db:"is_active"`
+	ShowPopup   bool       `db:"show_popup"`
 	Description *string    `db:"description"`
 	CreatedAt   time.Time  `db:"created_at"`
 	UpdatedAt   time.Time  `db:"updated_at"`
