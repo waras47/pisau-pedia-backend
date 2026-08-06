@@ -29,6 +29,10 @@ type GoogleExchangeRequest struct {
 	Code string `json:"code" validate:"required"`
 }
 
+type ResendVerificationRequest struct {
+	Email string `json:"email" validate:"required,email"`
+}
+
 type UserResponse struct {
 	ID       string `json:"id"`
 	Email    string `json:"email"`

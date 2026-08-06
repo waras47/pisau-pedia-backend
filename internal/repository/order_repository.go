@@ -68,6 +68,10 @@ type OrderRepository interface {
 	UpdateInvoiceURL(ctx context.Context, id string, invoiceURL string) error
 	UpdateStatus(ctx context.Context, id string, status entity.OrderStatus) error
 	UpdatePaymentStatus(ctx context.Context, id string, status entity.PaymentStatus) error
+	// UpdatePaymentProof stores the URL of a customer-uploaded payment proof
+	// (receipt/screenshot) — used by the manual/static payment flow, where
+	// there's no gateway webhook to confirm payment automatically.
+	UpdatePaymentProof(ctx context.Context, id string, url string) error
 	// MarkPaidIfUnpaid atomically transitions an order to "paid" only if it
 	// isn't already paid, returning whether this call was the one that made
 	// the change. Callers use this to fire paid-side-effects (notifications)

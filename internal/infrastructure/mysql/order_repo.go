@@ -182,6 +182,11 @@ func (r *orderRepository) UpdatePaymentStatus(ctx context.Context, id string, st
 	return err
 }
 
+func (r *orderRepository) UpdatePaymentProof(ctx context.Context, id string, url string) error {
+	_, err := r.db.ExecContext(ctx, `UPDATE orders SET payment_proof_url = ? WHERE id = ?`, url, id)
+	return err
+}
+
 func (r *orderRepository) MarkPaidIfUnpaid(ctx context.Context, id string) (bool, error) {
 	res, err := r.db.ExecContext(ctx,
 		`UPDATE orders SET payment_status = ? WHERE id = ? AND payment_status != ?`,

@@ -125,7 +125,8 @@ func (r *userRepository) Update(ctx context.Context, user *entity.User) error {
 			avatar_url = :avatar_url,
 			password_hash = :password_hash,
 			google_id = :google_id,
-			is_active = :is_active
+			is_active = :is_active,
+			email_verified_at = :email_verified_at
 		WHERE id = :id
 	`
 	_, err := r.db.NamedExecContext(ctx, query, user)

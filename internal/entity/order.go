@@ -39,6 +39,11 @@ type Order struct {
 	PaymentQRString     *string    `db:"payment_qr_string"`
 	PaymentURL          *string    `db:"payment_url"`
 	PaymentExpiry       *string    `db:"payment_expiry"`
+	// PaymentProofURL is a customer-uploaded receipt/screenshot, used for the
+	// manual/static payment flow (no automated gateway) — set via
+	// OrderUsecase.UploadPaymentProof, checked by an admin before flipping
+	// PaymentStatus to "paid" through UpdatePaymentStatus.
+	PaymentProofURL *string `db:"payment_proof_url"`
 	CustomerName        string     `db:"customer_name"`
 	CustomerEmail       string     `db:"customer_email"`
 	CustomerPhone       *string    `db:"customer_phone"`

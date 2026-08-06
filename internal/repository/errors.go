@@ -14,5 +14,7 @@ var (
 	ErrCouponNotFound         = errors.New("coupon not found")
 	ErrSubscriberNotFound     = errors.New("subscriber not found")
 	ErrSubscriberExists       = errors.New("email already subscribed")
-	ErrDuplicateEntry         = errors.New("duplicate entry")
+	ErrCollectionNotFound         = errors.New("collection not found")
+	ErrDuplicateEntry             = errors.New("duplicate entry")
+	ErrVerificationTokenNotFound  = errors.New("verification token not found")
 )

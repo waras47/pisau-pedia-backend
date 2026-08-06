@@ -22,8 +22,6 @@ func NewAuthHandler(authUsecase *usecase.AuthUsecase, frontendURL string) *AuthH
 	return &AuthHandler{authUsecase: authUsecase, frontendURL: frontendURL}
 }
 
-// googleStateCookie carries the CSRF state across the redirect to Google and
-// back — short-lived, httpOnly, and scoped to the callback path only.
 const googleStateCookie = "google_oauth_state"
 
 func randomState() (string, error) {
@@ -47,7 +45,7 @@ func (h *AuthHandler) Register(c echo.Context) error {
 		return response.Error(c, http.StatusUnprocessableEntity, "validation failed", err.Error())
 	}
 
-	user, tokens, err := h.authUsecase.Register(c.Request().Context(), req.Email, req.Password, req.FullName, req.Phone)
+	user, err := h.authUsecase.Register(c.Request().Context(), req.Email, req.Password, req.FullName, req.Phone)
 	if err != nil {
 		if errors.Is(err, usecase.ErrEmailAlreadyRegistered) {
 			return response.Error(c, http.StatusConflict, "email already registered", nil)
@@ -55,7 +53,10 @@ func (h *AuthHandler) Register(c echo.Context) error {
 		return response.Error(c, http.StatusInternalServerError, "failed to register", nil)
 	}
 
-	return response.Success(c, http.StatusCreated, "Registration successful", dto.ToAuthResponse(user, tokens))
+	return response.Success(c, http.StatusCreated, "Registration successful. Please check your email to verify your account.", map[string]interface{}{
+		"user":                  dto.ToUserResponse(user),
+		"requires_verification": true,
+	})
 }
 
 func (h *AuthHandler) Login(c echo.Context) error {
@@ -74,12 +75,53 @@ func (h *AuthHandler) Login(c echo.Context) error {
 			return response.Error(c, http.StatusUnauthorized, "invalid credentials", nil)
 		case errors.Is(err, usecase.ErrAccountDisabled):
 			return response.Error(c, http.StatusForbidden, "account disabled", nil)
+		case errors.Is(err, usecase.ErrEmailNotVerified):
+			return response.Error(c, http.StatusForbidden, "email not verified", nil)
 		default:
 			return response.Error(c, http.StatusInternalServerError, "failed to login", nil)
 		}
 	}
 
 	return response.Success(c, http.StatusOK, "Login successful", dto.ToAuthResponse(user, tokens))
+}
+
+func (h *AuthHandler) VerifyEmail(c echo.Context) error {
+	token := c.QueryParam("token")
+	if token == "" {
+		return response.Error(c, http.StatusBadRequest, "verification token is required", nil)
+	}
+
+	if err := h.authUsecase.VerifyEmail(c.Request().Context(), token); err != nil {
+		if errors.Is(err, usecase.ErrVerificationTokenInvalid) {
+			return response.Error(c, http.StatusBadRequest, "invalid or expired verification token", nil)
+		}
+		return response.Error(c, http.StatusInternalServerError, "failed to verify email", nil)
+	}
+
+	return response.Success(c, http.StatusOK, "Email verified successfully", nil)
+}
+
+func (h *AuthHandler) ResendVerification(c echo.Context) error {
+	var req dto.ResendVerificationRequest
+	if err := c.Bind(&req); err != nil {
+		return response.Error(c, http.StatusBadRequest, "invalid request body", nil)
+	}
+	if err := c.Validate(&req); err != nil {
+		return response.Error(c, http.StatusUnprocessableEntity, "validation failed", err.Error())
+	}
+
+	if err := h.authUsecase.ResendVerification(c.Request().Context(), req.Email); err != nil {
+		switch {
+		case errors.Is(err, usecase.ErrEmailAlreadyVerified):
+			return response.Error(c, http.StatusBadRequest, "email already verified", nil)
+		case errors.Is(err, usecase.ErrInvalidCredentials):
+			return response.Success(c, http.StatusOK, "If this email is registered, a verification email has been sent", nil)
+		default:
+			return response.Error(c, http.StatusInternalServerError, "failed to resend verification", nil)
+		}
+	}
+
+	return response.Success(c, http.StatusOK, "Verification email sent", nil)
 }
 
 func (h *AuthHandler) Refresh(c echo.Context) error {
@@ -119,15 +161,10 @@ func (h *AuthHandler) Logout(c echo.Context) error {
 	return response.Success(c, http.StatusOK, "Logged out", nil)
 }
 
-// GoogleStatus lets the frontend decide whether to render the "Continue
-// with Google" button at all — hidden rather than shown-then-broken when no
-// credentials are configured.
 func (h *AuthHandler) GoogleStatus(c echo.Context) error {
 	return response.Success(c, http.StatusOK, "OK", map[string]bool{"enabled": h.authUsecase.GoogleEnabled()})
 }
 
-// GoogleLogin starts the flow: stash a CSRF state in a short-lived cookie,
-// then redirect the browser to Google's consent screen.
 func (h *AuthHandler) GoogleLogin(c echo.Context) error {
 	state, err := randomState()
 	if err != nil {
@@ -154,10 +191,6 @@ func (h *AuthHandler) GoogleLogin(c echo.Context) error {
 	return c.Redirect(http.StatusFound, authURL)
 }
 
-// GoogleCallback is where Google redirects back with an authorization code.
-// It verifies the CSRF state, completes the login server-side, then hands
-// the browser off to the frontend with a single-use exchange code — never
-// the real tokens — in the URL.
 func (h *AuthHandler) GoogleCallback(c echo.Context) error {
 	failureURL := h.frontendURL + "/account/login?error=google_failed"
 
@@ -187,9 +220,6 @@ func (h *AuthHandler) GoogleCallback(c echo.Context) error {
 	return c.Redirect(http.StatusFound, h.frontendURL+"/account/callback?code="+exchangeCode)
 }
 
-// GoogleExchange is called by the frontend's callback page immediately
-// after landing there — trades the one-time code from the redirect for the
-// real access/refresh tokens, same response shape as Login/Register.
 func (h *AuthHandler) GoogleExchange(c echo.Context) error {
 	var req dto.GoogleExchangeRequest
 	if err := c.Bind(&req); err != nil {

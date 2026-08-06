@@ -11,6 +11,7 @@ type ServiceRequestFilter struct {
 	PerPage int
 	Type    string
 	Status  string
+	Email   string
 }
 
 type ServiceRequestRepository interface {

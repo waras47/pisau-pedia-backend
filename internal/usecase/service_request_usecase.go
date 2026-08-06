@@ -3,12 +3,14 @@ package usecase
 import (
 	"context"
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/google/uuid"
 
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/entity"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/repository"
+	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/mailer"
 )
 
 var ErrInvalidServiceRequestType = errors.New("invalid service request type")
@@ -45,10 +47,11 @@ type UpdateServiceRequestInput struct {
 type ServiceRequestUsecase struct {
 	repo                repository.ServiceRequestRepository
 	notificationUsecase *NotificationUsecase
+	mailer              *mailer.Mailer
 }
 
-func NewServiceRequestUsecase(repo repository.ServiceRequestRepository, notificationUsecase *NotificationUsecase) *ServiceRequestUsecase {
-	return &ServiceRequestUsecase{repo: repo, notificationUsecase: notificationUsecase}
+func NewServiceRequestUsecase(repo repository.ServiceRequestRepository, notificationUsecase *NotificationUsecase, mailer *mailer.Mailer) *ServiceRequestUsecase {
+	return &ServiceRequestUsecase{repo: repo, notificationUsecase: notificationUsecase, mailer: mailer}
 }
 
 func (u *ServiceRequestUsecase) CreateRequest(ctx context.Context, input CreateServiceRequestInput) (*entity.ServiceRequest, error) {
@@ -110,6 +113,34 @@ func (u *ServiceRequestUsecase) ListRequests(ctx context.Context, input ServiceR
 	return &ServiceRequestListResult{Requests: requests, Page: page, PerPage: perPage, Total: total, TotalPages: totalPages}, nil
 }
 
+func (u *ServiceRequestUsecase) ListMyRequests(ctx context.Context, email string, page, perPage int) (*ServiceRequestListResult, error) {
+	if page < 1 {
+		page = 1
+	}
+	if perPage < 1 {
+		perPage = 20
+	}
+	if perPage > 100 {
+		perPage = 100
+	}
+
+	requests, total, err := u.repo.FindAll(ctx, repository.ServiceRequestFilter{
+		Page:    page,
+		PerPage: perPage,
+		Email:   email,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	totalPages := total / int64(perPage)
+	if total%int64(perPage) != 0 {
+		totalPages++
+	}
+
+	return &ServiceRequestListResult{Requests: requests, Page: page, PerPage: perPage, Total: total, TotalPages: totalPages}, nil
+}
+
 func (u *ServiceRequestUsecase) GetRequest(ctx context.Context, id string) (*entity.ServiceRequest, error) {
 	return u.repo.FindByID(ctx, id)
 }
@@ -136,8 +167,20 @@ func (u *ServiceRequestUsecase) UpdateRequest(ctx context.Context, id string, in
 	}
 
 	if req.Status != oldStatus {
-		// Notification failures shouldn't block the status update.
 		_ = u.notificationUsecase.NotifyServiceRequestStatusChanged(ctx, req, oldStatus, req.Status)
+
+		if u.mailer != nil && u.mailer.Enabled() {
+			notes := ""
+			if req.AdminNotes != nil {
+				notes = *req.AdminNotes
+			}
+			if err := u.mailer.SendServiceRequestStatusEmail(
+				req.CustomerEmail, req.CustomerName,
+				string(req.Type), string(oldStatus), string(req.Status), notes,
+			); err != nil {
+				slog.Error("failed to send service request status email", "err", err, "to", req.CustomerEmail)
+			}
+		}
 	}
 
 	return req, nil

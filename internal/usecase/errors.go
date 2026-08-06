@@ -15,4 +15,7 @@ var (
 	// guard rejects: not paid yet, still pending/cancelled — see
 	// docs/16-plan-konfirmasi-pesanan-diterima-review.md.
 	ErrOrderNotEligibleForConfirmation = errors.New("order is not eligible for receipt confirmation yet")
+	ErrEmailNotVerified                = errors.New("email not verified")
+	ErrVerificationTokenInvalid        = errors.New("invalid or expired verification token")
+	ErrEmailAlreadyVerified            = errors.New("email already verified")
 )

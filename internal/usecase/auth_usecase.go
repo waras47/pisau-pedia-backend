@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"time"
@@ -19,11 +20,9 @@ import (
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/repository"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/config"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/googleoauth"
+	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/mailer"
 )
 
-// bcryptCost is set above the library default (10) as part of the extra
-// hardening requested for this project — higher cost means brute-forcing a
-// leaked hash is meaningfully slower, at an acceptable login-latency cost.
 const bcryptCost = 12
 
 type TokenPair struct {
@@ -35,47 +34,60 @@ type TokenPair struct {
 type AuthUsecase struct {
 	userRepo            repository.UserRepository
 	refreshTokenRepo    repository.RefreshTokenRepository
+	verificationRepo    repository.EmailVerificationRepository
 	jwtCfg              config.JWTConfig
 	notificationUsecase *NotificationUsecase
 	googleClient        *googleoauth.Client
+	mailer              *mailer.Mailer
+	frontendURL         string
 
 	exchangeMu    sync.Mutex
 	exchangeCodes map[string]exchangeEntry
 }
 
-// exchangeEntry briefly holds a completed Google login result behind a
-// single-use opaque code — see IssueExchangeCode.
 type exchangeEntry struct {
 	user      *entity.User
 	tokens    *TokenPair
 	expiresAt time.Time
 }
 
-func NewAuthUsecase(userRepo repository.UserRepository, refreshTokenRepo repository.RefreshTokenRepository, jwtCfg config.JWTConfig, notificationUsecase *NotificationUsecase, googleClient *googleoauth.Client) *AuthUsecase {
+func NewAuthUsecase(
+	userRepo repository.UserRepository,
+	refreshTokenRepo repository.RefreshTokenRepository,
+	verificationRepo repository.EmailVerificationRepository,
+	jwtCfg config.JWTConfig,
+	notificationUsecase *NotificationUsecase,
+	googleClient *googleoauth.Client,
+	m *mailer.Mailer,
+	frontendURL string,
+) *AuthUsecase {
 	return &AuthUsecase{
 		userRepo:            userRepo,
 		refreshTokenRepo:    refreshTokenRepo,
+		verificationRepo:    verificationRepo,
 		jwtCfg:              jwtCfg,
 		notificationUsecase: notificationUsecase,
 		googleClient:        googleClient,
+		mailer:              m,
+		frontendURL:         frontendURL,
 		exchangeCodes:       make(map[string]exchangeEntry),
 	}
 }
 
-func (u *AuthUsecase) Register(ctx context.Context, email, password, fullName, phone string) (*entity.User, *TokenPair, error) {
+func (u *AuthUsecase) Register(ctx context.Context, email, password, fullName, phone string) (*entity.User, error) {
 	email = strings.ToLower(strings.TrimSpace(email))
 
 	existing, err := u.userRepo.FindByEmail(ctx, email)
 	if err != nil && !errors.Is(err, repository.ErrUserNotFound) {
-		return nil, nil, err
+		return nil, err
 	}
 	if existing != nil {
-		return nil, nil, ErrEmailAlreadyRegistered
+		return nil, ErrEmailAlreadyRegistered
 	}
 
 	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcryptCost)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	user := &entity.User{
@@ -91,17 +103,39 @@ func (u *AuthUsecase) Register(ctx context.Context, email, password, fullName, p
 	}
 
 	if err := u.userRepo.Create(ctx, user); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	// Notification failures shouldn't block registration.
 	_ = u.notificationUsecase.NotifyCustomerRegistered(ctx, user)
 
-	tokens, err := u.generateTokenPair(ctx, user)
-	if err != nil {
-		return nil, nil, err
+	go u.sendVerificationEmail(user)
+
+	return user, nil
+}
+
+func (u *AuthUsecase) sendVerificationEmail(user *entity.User) {
+	if u.mailer == nil || !u.mailer.Enabled() {
+		return
 	}
-	return user, tokens, nil
+
+	rawToken, err := generateOpaqueToken()
+	if err != nil {
+		return
+	}
+
+	token := &entity.EmailVerificationToken{
+		ID:        uuid.New().String(),
+		UserID:    user.ID,
+		TokenHash: hashToken(rawToken),
+		ExpiresAt: time.Now().Add(24 * time.Hour),
+	}
+
+	if err := u.verificationRepo.Create(context.Background(), token); err != nil {
+		return
+	}
+
+	verifyURL := fmt.Sprintf("%s/account/verify-email?token=%s", u.frontendURL, rawToken)
+	_ = u.mailer.SendVerificationEmail(user.Email, user.FullName, verifyURL)
 }
 
 func (u *AuthUsecase) Login(ctx context.Context, email, password string) (*entity.User, *TokenPair, error) {
@@ -123,11 +157,66 @@ func (u *AuthUsecase) Login(ctx context.Context, email, password string) (*entit
 		return nil, nil, ErrAccountDisabled
 	}
 
+	if user.EmailVerifiedAt == nil {
+		return nil, nil, ErrEmailNotVerified
+	}
+
 	tokens, err := u.generateTokenPair(ctx, user)
 	if err != nil {
 		return nil, nil, err
 	}
 	return user, tokens, nil
+}
+
+func (u *AuthUsecase) VerifyEmail(ctx context.Context, rawToken string) error {
+	tokenHash := hashToken(rawToken)
+
+	stored, err := u.verificationRepo.FindByTokenHash(ctx, tokenHash)
+	if err != nil {
+		if errors.Is(err, repository.ErrVerificationTokenNotFound) {
+			return ErrVerificationTokenInvalid
+		}
+		return err
+	}
+
+	if stored.IsExpired() {
+		return ErrVerificationTokenInvalid
+	}
+
+	user, err := u.userRepo.FindByID(ctx, stored.UserID)
+	if err != nil {
+		return err
+	}
+
+	now := time.Now()
+	user.EmailVerifiedAt = &now
+	if err := u.userRepo.Update(ctx, user); err != nil {
+		return err
+	}
+
+	return u.verificationRepo.DeleteByUserID(ctx, user.ID)
+}
+
+func (u *AuthUsecase) ResendVerification(ctx context.Context, email string) error {
+	email = strings.ToLower(strings.TrimSpace(email))
+
+	user, err := u.userRepo.FindByEmail(ctx, email)
+	if err != nil {
+		if errors.Is(err, repository.ErrUserNotFound) {
+			return ErrInvalidCredentials
+		}
+		return err
+	}
+
+	if user.EmailVerifiedAt != nil {
+		return ErrEmailAlreadyVerified
+	}
+
+	_ = u.verificationRepo.DeleteByUserID(ctx, user.ID)
+
+	go u.sendVerificationEmail(user)
+
+	return nil
 }
 
 func (u *AuthUsecase) RefreshToken(ctx context.Context, refreshTokenRaw string) (*TokenPair, error) {
@@ -153,9 +242,6 @@ func (u *AuthUsecase) RefreshToken(ctx context.Context, refreshTokenRaw string) 
 		return nil, ErrAccountDisabled
 	}
 
-	// Rotation: revoke the token being redeemed before issuing a new pair,
-	// so a stolen-but-not-yet-used refresh token can only be replayed once
-	// before it stops working.
 	if err := u.refreshTokenRepo.Revoke(ctx, stored.ID); err != nil {
 		return nil, err
 	}
@@ -176,16 +262,10 @@ func (u *AuthUsecase) Logout(ctx context.Context, refreshTokenRaw string) error 
 	return u.refreshTokenRepo.Revoke(ctx, stored.ID)
 }
 
-// GoogleEnabled reports whether Google Sign-In has real credentials
-// configured — the frontend uses this (via /auth/google/status) to decide
-// whether to show the button at all.
 func (u *AuthUsecase) GoogleEnabled() bool {
 	return u.googleClient != nil && u.googleClient.Enabled()
 }
 
-// GoogleAuthURL returns the Google consent-screen URL to redirect the
-// browser to. state must be a fresh random value the caller can verify on
-// the way back (CSRF protection) — see AuthHandler.GoogleLogin.
 func (u *AuthUsecase) GoogleAuthURL(state string) (string, error) {
 	if !u.GoogleEnabled() {
 		return "", ErrGoogleAuthUnavailable
@@ -193,14 +273,6 @@ func (u *AuthUsecase) GoogleAuthURL(state string) (string, error) {
 	return u.googleClient.AuthCodeURL(state), nil
 }
 
-// GoogleCallback exchanges the authorization code Google redirected back
-// with for the user's verified profile, then finds or creates the matching
-// local account:
-//   - google_id already linked  -> that account (repeat login)
-//   - email matches an existing account -> link google_id to it (a user who
-//     registered with a password can add Google sign-in without creating a
-//     second account, safe because Google already verified the email)
-//   - neither -> brand new customer account
 func (u *AuthUsecase) GoogleCallback(ctx context.Context, code string) (*entity.User, *TokenPair, error) {
 	if !u.GoogleEnabled() {
 		return nil, nil, ErrGoogleAuthUnavailable
@@ -224,6 +296,10 @@ func (u *AuthUsecase) GoogleCallback(ctx context.Context, code string) (*entity.
 		}
 		if byEmail != nil {
 			byEmail.GoogleID = &info.Sub
+			if byEmail.EmailVerifiedAt == nil {
+				now := time.Now()
+				byEmail.EmailVerifiedAt = &now
+			}
 			if err := u.userRepo.Update(ctx, byEmail); err != nil {
 				return nil, nil, err
 			}
@@ -232,9 +308,6 @@ func (u *AuthUsecase) GoogleCallback(ctx context.Context, code string) (*entity.
 	}
 
 	if user == nil {
-		// Unusable random password — this account can only ever sign in via
-		// Google, but password_hash stays NOT NULL so no other code path
-		// (login, change-password) needs a nil check.
 		randomPassword, err := generateOpaqueToken()
 		if err != nil {
 			return nil, nil, err
@@ -248,14 +321,16 @@ func (u *AuthUsecase) GoogleCallback(ctx context.Context, code string) (*entity.
 		if fullName == "" {
 			fullName = email
 		}
+		now := time.Now()
 		newUser := &entity.User{
-			ID:           uuid.New().String(),
-			Email:        email,
-			PasswordHash: string(hash),
-			GoogleID:     &info.Sub,
-			FullName:     fullName,
-			Role:         entity.RoleCustomer,
-			IsActive:     true,
+			ID:              uuid.New().String(),
+			Email:           email,
+			PasswordHash:    string(hash),
+			GoogleID:        &info.Sub,
+			FullName:        fullName,
+			Role:            entity.RoleCustomer,
+			IsActive:        true,
+			EmailVerifiedAt: &now,
 		}
 		if info.Picture != "" {
 			newUser.AvatarURL = &info.Picture
@@ -278,15 +353,8 @@ func (u *AuthUsecase) GoogleCallback(ctx context.Context, code string) (*entity.
 	return user, tokens, nil
 }
 
-// exchangeCodeTTL is deliberately short — the code only needs to survive one
-// browser redirect (Google callback -> frontend callback page -> immediate
-// POST to consume it), typically well under a second.
 const exchangeCodeTTL = 2 * time.Minute
 
-// IssueExchangeCode hands a completed login result a single-use code instead
-// of putting the real access/refresh tokens in a URL (browser history,
-// server logs, Referer headers). The frontend's callback page immediately
-// exchanges it server-side for the real tokens via ConsumeExchangeCode.
 func (u *AuthUsecase) IssueExchangeCode(user *entity.User, tokens *TokenPair) (string, error) {
 	code, err := generateOpaqueToken()
 	if err != nil {
@@ -300,8 +368,6 @@ func (u *AuthUsecase) IssueExchangeCode(user *entity.User, tokens *TokenPair) (s
 	return code, nil
 }
 
-// ConsumeExchangeCode redeems a code issued by IssueExchangeCode. Codes are
-// single-use: a second redemption attempt (replay) always fails.
 func (u *AuthUsecase) ConsumeExchangeCode(code string) (*entity.User, *TokenPair, error) {
 	u.exchangeMu.Lock()
 	defer u.exchangeMu.Unlock()
@@ -360,9 +426,6 @@ func (u *AuthUsecase) generateTokenPair(ctx context.Context, user *entity.User) 
 	}, nil
 }
 
-// generateOpaqueToken returns a cryptographically random, base64url-encoded
-// refresh token. It is intentionally not a JWT: revocation only requires a
-// database lookup, no blocklist needed.
 func generateOpaqueToken() (string, error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {

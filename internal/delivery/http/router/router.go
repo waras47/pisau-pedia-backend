@@ -25,6 +25,8 @@ type Dependencies struct {
 	ShippingHandler       *handler.ShippingHandler
 	PaymentHandler        *handler.PaymentHandler
 	SearchHandler         *handler.SearchHandler
+	CollectionHandler     *handler.CollectionHandler
+	ConfiguratorHandler   *handler.ConfiguratorHandler
 }
 
 func Register(e *echo.Echo, deps Dependencies) {
@@ -35,6 +37,8 @@ func Register(e *echo.Echo, deps Dependencies) {
 	auth.POST("/login", deps.AuthHandler.Login)
 	auth.POST("/refresh", deps.AuthHandler.Refresh)
 	auth.POST("/logout", deps.AuthHandler.Logout, deps.JWTAuth)
+	auth.GET("/verify-email", deps.AuthHandler.VerifyEmail)
+	auth.POST("/resend-verification", deps.AuthHandler.ResendVerification)
 	auth.GET("/google/status", deps.AuthHandler.GoogleStatus)
 	auth.GET("/google", deps.AuthHandler.GoogleLogin)
 	auth.GET("/google/callback", deps.AuthHandler.GoogleCallback)
@@ -51,19 +55,28 @@ func Register(e *echo.Echo, deps Dependencies) {
 	users.GET("/orders", deps.OrderHandler.ListMine)
 	users.GET("/orders/:id", deps.OrderHandler.GetMine)
 	users.POST("/orders/:id/confirm-received", deps.OrderHandler.ConfirmReceived)
+	users.GET("/service-requests", deps.ServiceRequestHandler.ListMine)
 
 	v1.GET("/categories", deps.CategoryHandler.List)
 	v1.GET("/categories/:slug", deps.CategoryHandler.GetBySlug)
+	v1.GET("/collections", deps.CollectionHandler.List)
+	v1.GET("/collections/:slug", deps.CollectionHandler.GetBySlug)
 	v1.GET("/products", deps.ProductHandler.List)
 	v1.GET("/products/:slug", deps.ProductHandler.GetBySlug)
 	v1.GET("/exchange-rate", deps.ExchangeRateHandler.Get)
 	v1.POST("/orders", deps.OrderHandler.Create, deps.OptionalJWTAuth)
 	v1.GET("/orders/:id", deps.OrderHandler.GetByID)
+	v1.POST("/orders/:id/payment-proof", deps.UploadHandler.UploadPaymentProof)
 	v1.GET("/payment/methods", deps.PaymentHandler.Methods)
 	v1.POST("/webhooks/komerce/payment", deps.PaymentHandler.KomerceCallback)
 	v1.POST("/service-requests", deps.ServiceRequestHandler.Create)
 	v1.GET("/reviews", deps.ReviewHandler.ListPublic)
 	v1.POST("/reviews", deps.ReviewHandler.Create)
+	v1.GET("/configurator/shapes", deps.ConfiguratorHandler.ListShapes)
+	v1.GET("/configurator/blades", deps.ConfiguratorHandler.ListBlades)
+	v1.GET("/configurator/handles", deps.ConfiguratorHandler.ListHandles)
+	v1.GET("/configurator/accessories", deps.ConfiguratorHandler.ListAccessories)
+
 	v1.POST("/coupons/validate", deps.CouponHandler.Validate)
 	v1.GET("/coupons/promo-popup", deps.CouponHandler.GetPromoPopup)
 	v1.POST("/newsletter/subscribe", deps.NewsletterHandler.Subscribe)
@@ -120,6 +133,32 @@ func Register(e *echo.Echo, deps Dependencies) {
 	admin.PATCH("/notifications/:id/read", deps.NotificationHandler.MarkAsRead)
 	admin.PATCH("/notifications/read-all", deps.NotificationHandler.MarkAllAsRead)
 	admin.DELETE("/notifications/:id", deps.NotificationHandler.Delete)
+
+	admin.POST("/collections", deps.CollectionHandler.Create)
+	admin.PATCH("/collections/:id", deps.CollectionHandler.Update)
+	admin.DELETE("/collections/:id", deps.CollectionHandler.Delete)
+
+	cfgAdmin := admin.Group("/configurator")
+	cfgAdmin.GET("/shapes", deps.ConfiguratorHandler.ListShapes)
+	cfgAdmin.POST("/shapes", deps.ConfiguratorHandler.CreateShape)
+	cfgAdmin.GET("/shapes/:id", deps.ConfiguratorHandler.GetShape)
+	cfgAdmin.PATCH("/shapes/:id", deps.ConfiguratorHandler.UpdateShape)
+	cfgAdmin.DELETE("/shapes/:id", deps.ConfiguratorHandler.DeleteShape)
+	cfgAdmin.GET("/blades", deps.ConfiguratorHandler.ListBlades)
+	cfgAdmin.POST("/blades", deps.ConfiguratorHandler.CreateBlade)
+	cfgAdmin.GET("/blades/:id", deps.ConfiguratorHandler.GetBlade)
+	cfgAdmin.PATCH("/blades/:id", deps.ConfiguratorHandler.UpdateBlade)
+	cfgAdmin.DELETE("/blades/:id", deps.ConfiguratorHandler.DeleteBlade)
+	cfgAdmin.GET("/handles", deps.ConfiguratorHandler.ListHandles)
+	cfgAdmin.POST("/handles", deps.ConfiguratorHandler.CreateHandle)
+	cfgAdmin.GET("/handles/:id", deps.ConfiguratorHandler.GetHandle)
+	cfgAdmin.PATCH("/handles/:id", deps.ConfiguratorHandler.UpdateHandle)
+	cfgAdmin.DELETE("/handles/:id", deps.ConfiguratorHandler.DeleteHandle)
+	cfgAdmin.GET("/accessories", deps.ConfiguratorHandler.ListAccessories)
+	cfgAdmin.POST("/accessories", deps.ConfiguratorHandler.CreateAccessory)
+	cfgAdmin.GET("/accessories/:id", deps.ConfiguratorHandler.GetAccessory)
+	cfgAdmin.PATCH("/accessories/:id", deps.ConfiguratorHandler.UpdateAccessory)
+	cfgAdmin.DELETE("/accessories/:id", deps.ConfiguratorHandler.DeleteAccessory)
 
 	admin.GET("/search", deps.SearchHandler.Global)
 }

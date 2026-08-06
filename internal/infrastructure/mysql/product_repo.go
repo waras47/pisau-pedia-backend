@@ -49,6 +49,8 @@ func sortClause(sort string) string {
 		return "p.created_at DESC"
 	case "rating":
 		return "p.rating_avg DESC, p.review_count DESC"
+	case "bestseller":
+		return "COALESCE((SELECT SUM(oi.quantity) FROM order_items oi INNER JOIN orders o ON o.id = oi.order_id WHERE oi.product_id = p.id AND o.status NOT IN ('cancelled','expired')), 0) DESC, p.rating_avg DESC"
 	default:
 		return "p.created_at DESC"
 	}

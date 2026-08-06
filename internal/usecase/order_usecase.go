@@ -13,6 +13,7 @@ import (
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/entity"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/repository"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/komercepay"
+	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/mailer"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/rajaongkir"
 )
 
@@ -80,11 +81,12 @@ type OrderUsecase struct {
 	notificationUsecase *NotificationUsecase
 	shippingClient      *rajaongkir.Client
 	paymentClient       *komercepay.Client
+	mailer              *mailer.Mailer
 	log                 zerolog.Logger
 }
 
-func NewOrderUsecase(orderRepo repository.OrderRepository, productRepo repository.ProductRepository, paymentGateway PaymentGateway, couponUsecase *CouponUsecase, notificationUsecase *NotificationUsecase, shippingClient *rajaongkir.Client, paymentClient *komercepay.Client, log zerolog.Logger) *OrderUsecase {
-	return &OrderUsecase{orderRepo: orderRepo, productRepo: productRepo, paymentGateway: paymentGateway, couponUsecase: couponUsecase, notificationUsecase: notificationUsecase, shippingClient: shippingClient, paymentClient: paymentClient, log: log}
+func NewOrderUsecase(orderRepo repository.OrderRepository, productRepo repository.ProductRepository, paymentGateway PaymentGateway, couponUsecase *CouponUsecase, notificationUsecase *NotificationUsecase, shippingClient *rajaongkir.Client, paymentClient *komercepay.Client, m *mailer.Mailer, log zerolog.Logger) *OrderUsecase {
+	return &OrderUsecase{orderRepo: orderRepo, productRepo: productRepo, paymentGateway: paymentGateway, couponUsecase: couponUsecase, notificationUsecase: notificationUsecase, shippingClient: shippingClient, paymentClient: paymentClient, mailer: m, log: log}
 }
 
 func strPtr(s string) *string { return &s }
@@ -430,8 +432,18 @@ func (u *OrderUsecase) UpdateOrderStatus(ctx context.Context, id string, status 
 
 	if oldStatus != status {
 		order.Status = status
-		// Notification failures shouldn't block the status update.
 		_ = u.notificationUsecase.NotifyOrderStatusChanged(ctx, order, oldStatus, status)
+
+		if u.mailer != nil && u.mailer.Enabled() && order.CustomerEmail != "" {
+			go func() {
+				if err := u.mailer.SendOrderStatusEmail(
+					order.CustomerEmail, order.CustomerName, order.ID,
+					string(oldStatus), string(status),
+				); err != nil {
+					u.log.Error().Err(err).Str("order_id", order.ID).Msg("failed to send order status email")
+				}
+			}()
+		}
 	}
 	return nil
 }
@@ -441,6 +453,22 @@ func (u *OrderUsecase) UpdatePaymentStatus(ctx context.Context, id string, statu
 		return err
 	}
 	return u.orderRepo.UpdatePaymentStatus(ctx, id, status)
+}
+
+// UploadPaymentProof records the URL of a customer-uploaded receipt against
+// their order — part of the manual/static payment flow (see DummyGateway).
+// It doesn't change PaymentStatus; an admin still confirms payment manually
+// after checking the proof, via UpdatePaymentStatus.
+func (u *OrderUsecase) UploadPaymentProof(ctx context.Context, id string, url string) (*entity.Order, error) {
+	order, err := u.orderRepo.FindByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := u.orderRepo.UpdatePaymentProof(ctx, id, url); err != nil {
+		return nil, err
+	}
+	order.PaymentProofURL = &url
+	return order, nil
 }
 
 // ListMyOrders lists orders placed by userID while signed in — guest orders

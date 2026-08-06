@@ -26,7 +26,7 @@ type CreateOrderRequest struct {
 	DestinationID      string                   `json:"destination_id"`
 	Courier            string                   `json:"courier"`
 	Service            string                   `json:"service"`
-	PaymentType        string                   `json:"payment_type" validate:"omitempty,oneof=bank_transfer qris"`
+	PaymentType        string                   `json:"payment_type" validate:"omitempty,oneof=bank_transfer qris shopeepay dana"`
 	PaymentChannel     string                   `json:"payment_channel"`
 	Items              []CreateOrderItemRequest `json:"items" validate:"required,min=1,dive"`
 }
@@ -96,6 +96,7 @@ type OrderResponse struct {
 	PaymentQRString     string              `json:"payment_qr_string,omitempty"`
 	PaymentURL          string              `json:"payment_url,omitempty"`
 	PaymentExpiry       string              `json:"payment_expiry,omitempty"`
+	PaymentProofURL     string              `json:"payment_proof_url,omitempty"`
 	InvoiceURL          string              `json:"invoice_url,omitempty"`
 	CustomerConfirmedAt string              `json:"customer_confirmed_at,omitempty"`
 	CreatedAt           string              `json:"created_at"`
@@ -145,6 +146,9 @@ func ToOrderResponse(o *entity.Order) OrderResponse {
 	}
 	if o.PaymentExpiry != nil {
 		resp.PaymentExpiry = *o.PaymentExpiry
+	}
+	if o.PaymentProofURL != nil {
+		resp.PaymentProofURL = *o.PaymentProofURL
 	}
 	if o.CouponCode != nil {
 		resp.CouponCode = *o.CouponCode

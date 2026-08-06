@@ -33,6 +33,10 @@ func (r *serviceRequestRepository) FindAll(ctx context.Context, filter repositor
 		conditions = append(conditions, "status = ?")
 		args = append(args, filter.Status)
 	}
+	if filter.Email != "" {
+		conditions = append(conditions, "customer_email = ?")
+		args = append(args, filter.Email)
+	}
 
 	where := "1=1"
 	if len(conditions) > 0 {

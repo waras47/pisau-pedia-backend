@@ -19,6 +19,7 @@ import (
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/database"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/exchangerate"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/googleoauth"
+	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/mailer"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/komercepay"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/logger"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/rajaongkir"
@@ -64,12 +65,21 @@ func main() {
 	newsletterRepo := mysql.NewNewsletterRepository(db)
 	notificationRepo := mysql.NewNotificationRepository(db)
 
+	collectionRepo := mysql.NewCollectionRepository(db)
+	cfgShapeRepo := mysql.NewConfiguratorShapeRepository(db)
+	cfgBladeRepo := mysql.NewConfiguratorBladeRepository(db)
+	cfgHandleRepo := mysql.NewConfiguratorHandleRepository(db)
+	cfgAccessoryRepo := mysql.NewConfiguratorAccessoryRepository(db)
+	emailVerificationRepo := mysql.NewEmailVerificationRepository(db)
+
 	// Usecases
 	notificationUsecase := usecase.NewNotificationUsecase(notificationRepo)
 	googleOAuthClient := googleoauth.New(cfg.GoogleOAuth.ClientID, cfg.GoogleOAuth.ClientSecret, cfg.GoogleOAuth.RedirectURL)
-	authUsecase := usecase.NewAuthUsecase(userRepo, refreshTokenRepo, cfg.JWT, notificationUsecase, googleOAuthClient)
+	mailService := mailer.New(cfg.SMTP)
+	authUsecase := usecase.NewAuthUsecase(userRepo, refreshTokenRepo, emailVerificationRepo, cfg.JWT, notificationUsecase, googleOAuthClient, mailService, cfg.FrontendURL)
 	userUsecase := usecase.NewUserUsecase(userRepo, addressRepo, orderRepo)
 	categoryUsecase := usecase.NewCategoryUsecase(categoryRepo)
+	collectionUsecase := usecase.NewCollectionUsecase(collectionRepo)
 	productUsecase := usecase.NewProductUsecase(productRepo, categoryRepo, notificationUsecase)
 	couponUsecase := usecase.NewCouponUsecase(couponRepo)
 
@@ -79,30 +89,36 @@ func main() {
 	komercePayClient := komercepay.New(cfg.KomercePayment.BaseURL, cfg.KomercePayment.APIKey)
 	paymentUsecase := usecase.NewPaymentUsecase(komercePayClient, orderRepo, notificationUsecase, cfg.KomercePayment.CallbackKey)
 
+	// The store takes payment manually (bank transfer / ShopeePay / DANA /
+	// QRIS shown statically at checkout-success, confirmed by an admin) —
+	// not through an automated gateway. DummyGateway is always used here;
+	// komercePayClient/paymentUsecase above stay wired (webhook route still
+	// registered) so a real gateway can be switched back in later without
+	// re-plumbing everything, but nothing calls it while this is the case.
 	dummyGateway := payment.NewDummyGateway(cfg.FrontendURL)
 	var paymentGateway usecase.PaymentGateway = dummyGateway
-	if komercePayClient.Enabled() {
-		paymentGateway = payment.NewKomercePaymentGateway(komercePayClient, dummyGateway)
-	}
-	orderUsecase := usecase.NewOrderUsecase(orderRepo, productRepo, paymentGateway, couponUsecase, notificationUsecase, shippingClient, komercePayClient, log)
-	serviceRequestUsecase := usecase.NewServiceRequestUsecase(serviceRequestRepo, notificationUsecase)
+	orderUsecase := usecase.NewOrderUsecase(orderRepo, productRepo, paymentGateway, couponUsecase, notificationUsecase, shippingClient, komercePayClient, mailService, log)
+	serviceRequestUsecase := usecase.NewServiceRequestUsecase(serviceRequestRepo, notificationUsecase, mailService)
 	reviewUsecase := usecase.NewReviewUsecase(reviewRepo, productRepo)
 	newsletterUsecase := usecase.NewNewsletterUsecase(newsletterRepo)
+	configuratorUsecase := usecase.NewConfiguratorUsecase(cfgShapeRepo, cfgBladeRepo, cfgHandleRepo, cfgAccessoryRepo)
 	searchUsecase := usecase.NewSearchUsecase(productRepo, userRepo, orderRepo)
 
 	// Handlers
 	authHandler := handler.NewAuthHandler(authUsecase, cfg.FrontendURL)
 	userHandler := handler.NewUserHandler(userUsecase)
 	categoryHandler := handler.NewCategoryHandler(categoryUsecase)
+	collectionHandler := handler.NewCollectionHandler(collectionUsecase)
 	productHandler := handler.NewProductHandler(productUsecase)
 	orderHandler := handler.NewOrderHandler(orderUsecase)
-	serviceRequestHandler := handler.NewServiceRequestHandler(serviceRequestUsecase)
+	serviceRequestHandler := handler.NewServiceRequestHandler(serviceRequestUsecase, userRepo)
 	reviewHandler := handler.NewReviewHandler(reviewUsecase)
 	couponHandler := handler.NewCouponHandler(couponUsecase)
 	newsletterHandler := handler.NewNewsletterHandler(newsletterUsecase)
 	notificationHandler := handler.NewNotificationHandler(notificationUsecase)
 	shippingHandler := handler.NewShippingHandler(shippingUsecase)
 	paymentHandler := handler.NewPaymentHandler(paymentUsecase)
+	configuratorHandler := handler.NewConfiguratorHandler(configuratorUsecase)
 	searchHandler := handler.NewSearchHandler(searchUsecase)
 
 	jwtAuth := appmw.JWTAuth(cfg.JWT.Secret)
@@ -112,7 +128,7 @@ func main() {
 	if err != nil {
 		log.Fatal().Err(err).Msg("failed to init storage")
 	}
-	uploadHandler := handler.NewUploadHandler(store)
+	uploadHandler := handler.NewUploadHandler(store, orderUsecase)
 
 	exchangeRateClient := exchangerate.New()
 	exchangeRateHandler := handler.NewExchangeRateHandler(exchangeRateClient)
@@ -135,6 +151,8 @@ func main() {
 		ShippingHandler:       shippingHandler,
 		PaymentHandler:        paymentHandler,
 		SearchHandler:         searchHandler,
+		CollectionHandler:     collectionHandler,
+		ConfiguratorHandler:   configuratorHandler,
 	})
 
 	go runExpiredOrderSweep(orderUsecase, log)

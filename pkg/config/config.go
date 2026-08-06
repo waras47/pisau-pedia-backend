@@ -65,15 +65,24 @@ type GoogleOAuthConfig struct {
 	RedirectURL  string
 }
 
+type SMTPConfig struct {
+	Host     string
+	Port     int
+	Username string
+	Password string
+	From     string
+}
+
 type Config struct {
-	App         AppConfig
-	DB          DBConfig
-	JWT         JWTConfig
+	App            AppConfig
+	DB             DBConfig
+	JWT            JWTConfig
 	Minio          MinioConfig
 	RajaOngkir     RajaOngkirConfig
 	KomercePayment KomercePaymentConfig
 	Qrisly         QrislyConfig
 	GoogleOAuth    GoogleOAuthConfig
+	SMTP           SMTPConfig
 	FrontendURL    string
 }
 
@@ -148,6 +157,13 @@ func Load() (*Config, error) {
 			ClientID:     v.GetString("GOOGLE_CLIENT_ID"),
 			ClientSecret: v.GetString("GOOGLE_CLIENT_SECRET"),
 			RedirectURL:  v.GetString("GOOGLE_REDIRECT_URL"),
+		},
+		SMTP: SMTPConfig{
+			Host:     v.GetString("SMTP_HOST"),
+			Port:     v.GetInt("SMTP_PORT"),
+			Username: v.GetString("SMTP_USERNAME"),
+			Password: v.GetString("SMTP_PASSWORD"),
+			From:     v.GetString("SMTP_FROM"),
 		},
 		FrontendURL: v.GetString("FRONTEND_URL"),
 	}

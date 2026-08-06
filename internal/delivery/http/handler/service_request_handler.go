@@ -14,11 +14,35 @@ import (
 )
 
 type ServiceRequestHandler struct {
-	usecase *usecase.ServiceRequestUsecase
+	usecase  *usecase.ServiceRequestUsecase
+	userRepo repository.UserRepository
 }
 
-func NewServiceRequestHandler(usecase *usecase.ServiceRequestUsecase) *ServiceRequestHandler {
-	return &ServiceRequestHandler{usecase: usecase}
+func NewServiceRequestHandler(usecase *usecase.ServiceRequestUsecase, userRepo repository.UserRepository) *ServiceRequestHandler {
+	return &ServiceRequestHandler{usecase: usecase, userRepo: userRepo}
+}
+
+func (h *ServiceRequestHandler) ListMine(c echo.Context) error {
+	userID := currentUserID(c)
+	user, err := h.userRepo.FindByID(c.Request().Context(), userID)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, "failed to get user", nil)
+	}
+
+	page, _ := strconv.Atoi(c.QueryParam("page"))
+	perPage, _ := strconv.Atoi(c.QueryParam("per_page"))
+
+	result, err := h.usecase.ListMyRequests(c.Request().Context(), user.Email, page, perPage)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, "failed to list service requests", nil)
+	}
+
+	return response.SuccessPaginated(c, http.StatusOK, dto.ToServiceRequestResponses(result.Requests), response.Meta{
+		Page:       result.Page,
+		PerPage:    result.PerPage,
+		Total:      result.Total,
+		TotalPages: result.TotalPages,
+	})
 }
 
 func (h *ServiceRequestHandler) Create(c echo.Context) error {

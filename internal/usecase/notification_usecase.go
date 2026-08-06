@@ -98,21 +98,21 @@ func (u *NotificationUsecase) NotifyOrderCreated(ctx context.Context, order *ent
 	return u.create(ctx, entity.NotificationModuleOrder, "order_created",
 		"Pesanan Baru",
 		fmt.Sprintf("Pesanan baru dari %s senilai Rp%d", order.CustomerName, order.Total),
-		ptr(order.ID), ptr("/admin/orders?status=pending"))
+		ptr(order.ID), ptr("/pisaupedia/admin/orders?status=pending"))
 }
 
 func (u *NotificationUsecase) NotifyOrderStatusChanged(ctx context.Context, order *entity.Order, oldStatus, newStatus entity.OrderStatus) error {
 	return u.create(ctx, entity.NotificationModuleOrder, "order_status_changed",
 		"Status Pesanan Diperbarui",
 		fmt.Sprintf("Pesanan #%s dari %s berubah dari %s menjadi %s", order.ID[:8], order.CustomerName, oldStatus, newStatus),
-		ptr(order.ID), ptr("/admin/orders"))
+		ptr(order.ID), ptr("/pisaupedia/admin/orders"))
 }
 
 func (u *NotificationUsecase) NotifyOrderPaid(ctx context.Context, order *entity.Order) error {
 	return u.create(ctx, entity.NotificationModuleOrder, "order_paid",
 		"Pembayaran Diterima",
 		fmt.Sprintf("Pesanan #%s dari %s telah dibayar (Rp%d)", order.ID[:8], order.CustomerName, order.Total),
-		ptr(order.ID), ptr("/admin/orders"))
+		ptr(order.ID), ptr("/pisaupedia/admin/orders"))
 }
 
 // NotifyOrderReceived fires when a customer self-confirms their package
@@ -122,7 +122,7 @@ func (u *NotificationUsecase) NotifyOrderReceived(ctx context.Context, order *en
 	return u.create(ctx, entity.NotificationModuleOrder, "order_received",
 		"Pesanan Dikonfirmasi Diterima",
 		fmt.Sprintf("Pesanan #%s dikonfirmasi diterima oleh %s", order.ID[:8], order.CustomerName),
-		ptr(order.ID), ptr("/admin/orders"))
+		ptr(order.ID), ptr("/pisaupedia/admin/orders"))
 }
 
 func (u *NotificationUsecase) NotifyServiceRequestCreated(ctx context.Context, req *entity.ServiceRequest) error {
@@ -141,35 +141,35 @@ func (u *NotificationUsecase) NotifyServiceRequestStatusChanged(ctx context.Cont
 
 func serviceRequestLink(t entity.ServiceRequestType) string {
 	if t == entity.ServiceRequestTypeEngraving {
-		return "/admin/engravings"
+		return "/pisaupedia/admin/engravings"
 	}
-	return "/admin/sharpening"
+	return "/pisaupedia/admin/sharpening"
 }
 
 func (u *NotificationUsecase) NotifyCustomerRegistered(ctx context.Context, user *entity.User) error {
 	return u.create(ctx, entity.NotificationModuleCustomer, "customer_registered",
 		"Customer Baru",
 		fmt.Sprintf("%s (%s) baru saja mendaftar", user.FullName, user.Email),
-		ptr(user.ID), ptr("/admin/customers"))
+		ptr(user.ID), ptr("/pisaupedia/admin/customers"))
 }
 
 func (u *NotificationUsecase) NotifyProductCreated(ctx context.Context, product *entity.Product) error {
 	return u.create(ctx, entity.NotificationModuleProduct, "product_created",
 		"Produk Baru Ditambahkan",
 		fmt.Sprintf("%s telah ditambahkan ke katalog", product.Name),
-		ptr(product.ID), ptr("/admin/products"))
+		ptr(product.ID), ptr("/pisaupedia/admin/products"))
 }
 
 func (u *NotificationUsecase) NotifyProductDeleted(ctx context.Context, product *entity.Product) error {
 	return u.create(ctx, entity.NotificationModuleProduct, "product_deleted",
 		"Produk Dihapus",
 		fmt.Sprintf("%s telah dihapus dari katalog", product.Name),
-		nil, ptr("/admin/products"))
+		nil, ptr("/pisaupedia/admin/products"))
 }
 
 func (u *NotificationUsecase) NotifyProductLowStock(ctx context.Context, product *entity.Product) error {
 	return u.create(ctx, entity.NotificationModuleProduct, "product_low_stock",
 		"Stok Menipis",
 		fmt.Sprintf("Stok %s tinggal %d unit", product.Name, product.Stock),
-		ptr(product.ID), ptr("/admin/products"))
+		ptr(product.ID), ptr("/pisaupedia/admin/products"))
 }
