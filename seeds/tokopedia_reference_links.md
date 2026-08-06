@@ -1,0 +1,22 @@
+# Referensi link Tokopedia per produk (BUKAN URL gambar langsung)
+
+Dipakai untuk mengambil foto produk asli secara manual (upload lewat admin panel), bukan untuk di-hotlink otomatis.
+
+- **Slicer HSS Nashiji Finish 215mm**: https://www.tokopedia.com/pisaupedia/pisau-dapur-slicer-hss-nashiji-finish-210mm-1735254854735071102?extParam=src%3Dshop%26whid%3D126505&aff_unique_id=&channel=others&chain_key=
+- **K-Tip Gyuto HSS Nashiji Finish 205mm**: https://www.tokopedia.com/pisaupedia/pisau-dapur-k-tip-gyuto-hss-nashiji-finish-205mm-1735254651580024702?extParam=src%3Dshop%26whid%3D126505&aff_unique_id=&channel=others&chain_key=
+- **Slicer HSS Kurouchi Finish 210mm**: https://www.tokopedia.com/pisaupedia/pisau-dapur-slicer-hss-210mmkurouchi-finish-1734279173528258430?extParam=src%3Dshop%26whid%3D126505&aff_unique_id=&channel=others&chain_key=
+- **Gyuto Nashiji Finish 210mm**: https://www.tokopedia.com/pisaupedia/pisau-dapur-gyuto-210mm-nashiji-finish-1734279126502442878?extParam=src%3Dshop%26whid%3D126505&aff_unique_id=&channel=others&chain_key=
+- **Deba High Speed Steel 165mm**: https://www.tokopedia.com/pisaupedia/deba-165mm-high-speed-steel-1734278076450244478?extParam=src%3Dshop%26whid%3D126505&aff_unique_id=&channel=others&chain_key=
+- **Gyuto Amboyna Blue Resin Handle 240mm **: https://www.tokopedia.com/pisaupedia/pisau-dapur-gyuto-240mm-amboyna-blue-resin-handle-1733495251831523198?extParam=src%3Dshop%26whid%3D126505&aff_unique_id=&channel=others&chain_key=
+- **Gyuto HSS with Dyed Alder Wood Handle 210mm**: https://www.tokopedia.com/pisaupedia/gyuto-hss-210-with-dyed-alder-wood-handle-1733430975226218366?extParam=src%3Dshop%26whid%3D126505&aff_unique_id=&channel=others&chain_key=
+- **K-tip Gyuto Kurouchi Hight Speed Steel 215mm **: https://www.tokopedia.com/pisaupedia/pisau-dapur-k-tip-gyuto-kurouchi-215mm-hight-speed-steel-1732976066254440318?extParam=src%3Dshop%26whid%3D126505&aff_unique_id=&channel=others&chain_key=
+- **Petty Kurouchi High Speed Steel 140mm**: https://www.tokopedia.com/pisaupedia/pisau-dapur-petty-kurouchi-140mm-high-speed-steel-1732973787813349246?extParam=src%3Dshop%26whid%3D126505&aff_unique_id=&channel=others&chain_key=
+- **Slicer L6 210mm**: https://www.tokopedia.com/pisaupedia/pisau-dapur-slicer-l6-dengan-blade-panjang-210mm-dan-tinggi-30mm-1732973760166070142?extParam=src%3Dshop%26whid%3D126505&aff_unique_id=&channel=others&chain_key=
+- **K-tip Gyuto N695 Stainless Steel 210mm**: https://www.tokopedia.com/pisaupedia/pisau-dapur-k-tip-gyuto-210mm-n695-stainless-steel-dengan-gagang-amboyna-verule-ebony-sarung-peach-tahan-karat-1732923358680876926?extParam=whid%3D126505%26src%3Dshop&aff_unique_id=&channel=others&chain_key=
+- **Gyuto Kurouchi High Speed Steel 235mm**: https://www.tokopedia.com/pisaupedia/pisau-dapur-gyuto-kurouchi-235mm-curly-handle-pisau-dapur-memotong-mengiris-mencincang-hingga-slicing-dengan-presisi-1732730591092639614?extParam=src%3Dshop%26whid%3D126505&aff_unique_id=&channel=others&chain_key=
+- **Honesuki Carbon Steel  155mm**: https://www.tokopedia.com/pisaupedia/pisau-dapur-honesuki-155mm-carbon-steel-teakwood-with-rosewood-ferule-coated-1732702182101583742?extParam=src%3Dshop%26whid%3D126505&aff_unique_id=&channel=others&chain_key=
+- **Yanagiba Akeno Carbon Steel 240mm**: https://www.tokopedia.com/pisaupedia/yanagiba-akeno-240mm-carbon-steel-1731067824394175517?extParam=src%3Dshop%26whid%3D126505&aff_unique_id=&channel=others&chain_key=
+- **Slicer Knife Akeno Carbon Steel 175mm **: https://www.tokopedia.com/pisaupedia/pisau-dapur-slicer-knife-akeno-175mm-carbon-steel?extParam=src%3Dshop%26whid%3D126505&aff_unique_id=&channel=others&chain_key=
+- **Taiwan Tuna Akeno 170mm**: https://www.tokopedia.com/pisaupedia/pisau-taiwan-tuna-akeno-170mm-teakwood-handle?extParam=src%3Dshop%26whid%3D126505&aff_unique_id=&channel=others&chain_key=
+- **Kiritsuke Kimimaro N695 220mm**: https://www.tokopedia.com/pisaupedia/pisau-dapur-kiritsuke-kimimaro-220mm-n695-acacia-wood-handle?extParam=src%3Dshop%26whid%3D126505&aff_unique_id=&channel=others&chain_key=
+- **Bunka Akeno Carbon Steel 165mm **: https://www.tokopedia.com/pisaupedia/pisau-dapur-bunka-akeno-165mm?extParam=src%3Dshop%26whid%3D126505&aff_unique_id=&channel=others&chain_key=
