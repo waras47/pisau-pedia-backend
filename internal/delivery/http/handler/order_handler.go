@@ -170,7 +170,7 @@ func (h *OrderHandler) UpdateStatus(c echo.Context) error {
 		return response.Error(c, http.StatusUnprocessableEntity, "validation failed", err.Error())
 	}
 
-	err := h.orderUsecase.UpdateOrderStatus(c.Request().Context(), c.Param("id"), entity.OrderStatus(req.Status))
+	err := h.orderUsecase.UpdateOrderStatus(c.Request().Context(), c.Param("id"), entity.OrderStatus(req.Status), req.TrackingNumber, req.ShippingEvidenceURL)
 	if err != nil {
 		if errors.Is(err, repository.ErrOrderNotFound) {
 			return response.Error(c, http.StatusNotFound, "order not found", nil)

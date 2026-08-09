@@ -67,6 +67,7 @@ type OrderRepository interface {
 	Create(ctx context.Context, order *entity.Order) error
 	UpdateInvoiceURL(ctx context.Context, id string, invoiceURL string) error
 	UpdateStatus(ctx context.Context, id string, status entity.OrderStatus) error
+	UpdateShippingEvidence(ctx context.Context, id string, trackingNumber, evidenceURL *string) error
 	UpdatePaymentStatus(ctx context.Context, id string, status entity.PaymentStatus) error
 	// UpdatePaymentProof stores the URL of a customer-uploaded payment proof
 	// (receipt/screenshot) — used by the manual/static payment flow, where

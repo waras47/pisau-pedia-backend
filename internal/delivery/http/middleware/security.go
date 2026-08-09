@@ -25,5 +25,5 @@ func Secure(isProduction bool) echo.MiddlewareFunc {
 // BodyLimit caps request body size so a single oversized request can't be
 // used as a cheap denial-of-service vector.
 func BodyLimit() echo.MiddlewareFunc {
-	return echomw.BodyLimit("1M")
+	return echomw.BodyLimit("6M")
 }

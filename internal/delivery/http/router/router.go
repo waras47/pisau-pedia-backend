@@ -28,6 +28,9 @@ type Dependencies struct {
 	CollectionHandler     *handler.CollectionHandler
 	ConfiguratorHandler   *handler.ConfiguratorHandler
 	SitePromoHandler      *handler.SitePromoHandler
+	SiteContentHandler    *handler.SiteContentHandler
+	PostCategoryHandler   *handler.PostCategoryHandler
+	PostHandler           *handler.PostHandler
 }
 
 func Register(e *echo.Echo, deps Dependencies) {
@@ -82,6 +85,12 @@ func Register(e *echo.Echo, deps Dependencies) {
 	v1.POST("/coupons/validate", deps.CouponHandler.Validate)
 	v1.GET("/coupons/promo-popup", deps.CouponHandler.GetPromoPopup)
 	v1.GET("/site-promos/active", deps.SitePromoHandler.GetActive)
+	v1.GET("/site-contents/:key", deps.SiteContentHandler.GetByKey)
+	v1.GET("/post-categories", deps.PostCategoryHandler.List)
+	v1.GET("/post-categories/:slug", deps.PostCategoryHandler.GetBySlug)
+	v1.GET("/posts", deps.PostHandler.PublicList)
+	v1.GET("/posts/:slug", deps.PostHandler.GetBySlug)
+
 	v1.POST("/newsletter/subscribe", deps.NewsletterHandler.Subscribe)
 	v1.GET("/shipping/destinations", deps.ShippingHandler.SearchDestinations)
 	v1.POST("/shipping/cost", deps.ShippingHandler.CalculateCost)
@@ -167,6 +176,18 @@ func Register(e *echo.Echo, deps Dependencies) {
 	admin.POST("/site-promos", deps.SitePromoHandler.Create)
 	admin.PATCH("/site-promos/:id", deps.SitePromoHandler.Update)
 	admin.DELETE("/site-promos/:id", deps.SitePromoHandler.Delete)
+
+	admin.POST("/post-categories", deps.PostCategoryHandler.Create)
+	admin.PATCH("/post-categories/:id", deps.PostCategoryHandler.Update)
+	admin.DELETE("/post-categories/:id", deps.PostCategoryHandler.Delete)
+	admin.GET("/posts", deps.PostHandler.List)
+	admin.POST("/posts", deps.PostHandler.Create)
+	admin.PATCH("/posts/:id", deps.PostHandler.Update)
+	admin.DELETE("/posts/:id", deps.PostHandler.Delete)
+
+	admin.GET("/site-contents", deps.SiteContentHandler.List)
+	admin.PUT("/site-contents", deps.SiteContentHandler.Upsert)
+	admin.DELETE("/site-contents/:id", deps.SiteContentHandler.Delete)
 
 	admin.GET("/search", deps.SearchHandler.Global)
 }

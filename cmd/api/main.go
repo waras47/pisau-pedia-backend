@@ -66,11 +66,14 @@ func main() {
 	notificationRepo := mysql.NewNotificationRepository(db)
 
 	sitePromoRepo := mysql.NewSitePromoRepository(db)
+	siteContentRepo := mysql.NewSiteContentRepository(db)
 	collectionRepo := mysql.NewCollectionRepository(db)
 	cfgShapeRepo := mysql.NewConfiguratorShapeRepository(db)
 	cfgBladeRepo := mysql.NewConfiguratorBladeRepository(db)
 	cfgHandleRepo := mysql.NewConfiguratorHandleRepository(db)
 	cfgAccessoryRepo := mysql.NewConfiguratorAccessoryRepository(db)
+	postCategoryRepo := mysql.NewPostCategoryRepository(db)
+	postRepo := mysql.NewPostRepository(db)
 	emailVerificationRepo := mysql.NewEmailVerificationRepository(db)
 
 	// Usecases
@@ -82,6 +85,7 @@ func main() {
 	categoryUsecase := usecase.NewCategoryUsecase(categoryRepo)
 	collectionUsecase := usecase.NewCollectionUsecase(collectionRepo)
 	sitePromoUsecase := usecase.NewSitePromoUsecase(sitePromoRepo)
+	siteContentUsecase := usecase.NewSiteContentUsecase(siteContentRepo)
 	productUsecase := usecase.NewProductUsecase(productRepo, categoryRepo, notificationUsecase)
 	couponUsecase := usecase.NewCouponUsecase(couponRepo)
 
@@ -104,6 +108,8 @@ func main() {
 	reviewUsecase := usecase.NewReviewUsecase(reviewRepo, productRepo, notificationUsecase)
 	newsletterUsecase := usecase.NewNewsletterUsecase(newsletterRepo)
 	configuratorUsecase := usecase.NewConfiguratorUsecase(cfgShapeRepo, cfgBladeRepo, cfgHandleRepo, cfgAccessoryRepo)
+	postCategoryUsecase := usecase.NewPostCategoryUsecase(postCategoryRepo)
+	postUsecase := usecase.NewPostUsecase(postRepo)
 	searchUsecase := usecase.NewSearchUsecase(productRepo, userRepo, orderRepo)
 
 	// Handlers
@@ -113,6 +119,7 @@ func main() {
 	collectionHandler := handler.NewCollectionHandler(collectionUsecase)
 	productHandler := handler.NewProductHandler(productUsecase, sitePromoUsecase)
 	sitePromoHandler := handler.NewSitePromoHandler(sitePromoUsecase)
+	siteContentHandler := handler.NewSiteContentHandler(siteContentUsecase)
 	orderHandler := handler.NewOrderHandler(orderUsecase)
 	serviceRequestHandler := handler.NewServiceRequestHandler(serviceRequestUsecase, userRepo)
 	reviewHandler := handler.NewReviewHandler(reviewUsecase)
@@ -122,6 +129,8 @@ func main() {
 	shippingHandler := handler.NewShippingHandler(shippingUsecase)
 	paymentHandler := handler.NewPaymentHandler(paymentUsecase)
 	configuratorHandler := handler.NewConfiguratorHandler(configuratorUsecase)
+	postCategoryHandler := handler.NewPostCategoryHandler(postCategoryUsecase)
+	postHandler := handler.NewPostHandler(postUsecase)
 	searchHandler := handler.NewSearchHandler(searchUsecase)
 
 	jwtAuth := appmw.JWTAuth(cfg.JWT.Secret)
@@ -157,6 +166,9 @@ func main() {
 		CollectionHandler:     collectionHandler,
 		ConfiguratorHandler:   configuratorHandler,
 		SitePromoHandler:      sitePromoHandler,
+		SiteContentHandler:    siteContentHandler,
+		PostCategoryHandler:   postCategoryHandler,
+		PostHandler:           postHandler,
 	})
 
 	go runExpiredOrderSweep(orderUsecase, log)

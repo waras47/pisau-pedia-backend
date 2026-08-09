@@ -272,7 +272,7 @@ func (u *ProductUsecase) DeleteProduct(ctx context.Context, id string) error {
 // lowStockThreshold matches the threshold planned for the low-stock alert
 // feature (see docs) — kept in one place so both eventually agree on what
 // "menipis" means.
-const lowStockThreshold = 5
+const lowStockThreshold = 2
 
 type InventoryReportResult struct {
 	Summary  *repository.InventorySummary

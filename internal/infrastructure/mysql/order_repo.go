@@ -177,6 +177,13 @@ func (r *orderRepository) UpdateStatus(ctx context.Context, id string, status en
 	return err
 }
 
+func (r *orderRepository) UpdateShippingEvidence(ctx context.Context, id string, trackingNumber, evidenceURL *string) error {
+	_, err := r.db.ExecContext(ctx,
+		`UPDATE orders SET tracking_number = ?, shipping_evidence_url = ? WHERE id = ?`,
+		trackingNumber, evidenceURL, id)
+	return err
+}
+
 func (r *orderRepository) UpdatePaymentStatus(ctx context.Context, id string, status entity.PaymentStatus) error {
 	_, err := r.db.ExecContext(ctx, `UPDATE orders SET payment_status = ? WHERE id = ?`, status, id)
 	return err

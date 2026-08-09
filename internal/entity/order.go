@@ -60,6 +60,8 @@ type Order struct {
 	ShippingCourier     *string    `db:"shipping_courier"`
 	ShippingService     *string    `db:"shipping_service"`
 	ShippingETD         *string    `db:"shipping_etd"`
+	TrackingNumber      *string    `db:"tracking_number"`
+	ShippingEvidenceURL *string    `db:"shipping_evidence_url"`
 	DestinationID       *string    `db:"destination_id"`
 	XenditExternalID    *string    `db:"xendit_external_id"`
 	XenditInvoiceURL    *string    `db:"xendit_invoice_url"`

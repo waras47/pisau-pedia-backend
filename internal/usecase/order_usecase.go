@@ -419,7 +419,7 @@ func (u *OrderUsecase) GetOrder(ctx context.Context, id string) (*entity.Order, 
 	return u.orderRepo.FindByID(ctx, id)
 }
 
-func (u *OrderUsecase) UpdateOrderStatus(ctx context.Context, id string, status entity.OrderStatus) error {
+func (u *OrderUsecase) UpdateOrderStatus(ctx context.Context, id string, status entity.OrderStatus, trackingNumber, shippingEvidenceURL *string) error {
 	order, err := u.orderRepo.FindByID(ctx, id)
 	if err != nil {
 		return err
@@ -428,6 +428,12 @@ func (u *OrderUsecase) UpdateOrderStatus(ctx context.Context, id string, status 
 
 	if err := u.orderRepo.UpdateStatus(ctx, id, status); err != nil {
 		return err
+	}
+
+	if trackingNumber != nil || shippingEvidenceURL != nil {
+		if err := u.orderRepo.UpdateShippingEvidence(ctx, id, trackingNumber, shippingEvidenceURL); err != nil {
+			return err
+		}
 	}
 
 	if oldStatus != status {

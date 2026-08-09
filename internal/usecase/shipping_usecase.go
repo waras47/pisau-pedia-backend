@@ -13,6 +13,9 @@ var ErrShippingUnavailable = errors.New("shipping service is not configured")
 // defaultCouriers is the domestic courier set queried for cost options.
 var defaultCouriers = []string{"jne", "sicepat", "jnt", "tiki", "pos", "ninja", "ide", "sap"}
 
+// internationalCouriers is the international courier set.
+var internationalCouriers = []string{"pos", "tiki", "jne"}
+
 // minWeightGrams guards against RajaOngkir rejecting a zero/too-small weight.
 const minWeightGrams = 1000
 
@@ -29,7 +32,13 @@ func (u *ShippingUsecase) SearchDestinations(ctx context.Context, search string)
 	if !u.client.Enabled() {
 		return nil, ErrShippingUnavailable
 	}
-	return u.client.SearchDomesticDestination(ctx, search, 20)
+	domestic, err := u.client.SearchDomesticDestination(ctx, search, 20)
+	if err != nil {
+		domestic = nil
+	}
+
+	international, _ := u.client.SearchInternationalDestination(ctx, search, 10)
+	return append(domestic, international...), nil
 }
 
 // CalculateOptions computes total package weight from the catalog (never
@@ -41,7 +50,22 @@ func (u *ShippingUsecase) CalculateOptions(ctx context.Context, destinationID st
 	}
 
 	weight := u.totalWeight(ctx, items)
-	return u.client.CalculateDomesticCost(ctx, u.client.OriginID(), destinationID, weight, defaultCouriers)
+
+	// Try domestic first
+	opts, err := u.client.CalculateDomesticCost(ctx, u.client.OriginID(), destinationID, weight, defaultCouriers)
+	if err == nil && len(opts) > 0 {
+		return opts, nil
+	}
+
+	// Fall back to international
+	intlOpts, intlErr := u.client.CalculateInternationalCost(ctx, u.client.OriginID(), destinationID, weight, internationalCouriers)
+	if intlErr != nil {
+		if err != nil {
+			return nil, err
+		}
+		return nil, intlErr
+	}
+	return intlOpts, nil
 }
 
 func (u *ShippingUsecase) totalWeight(ctx context.Context, items []OrderItemInput) int {

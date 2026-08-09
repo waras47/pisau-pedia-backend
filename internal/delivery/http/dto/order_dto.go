@@ -55,7 +55,9 @@ func (r CreateOrderRequest) ToInput() usecase.CreateOrderInput {
 }
 
 type UpdateOrderStatusRequest struct {
-	Status string `json:"status" validate:"required,oneof=pending processing ready_for_delivery delivered cancelled"`
+	Status              string  `json:"status" validate:"required,oneof=pending processing ready_for_delivery delivered cancelled"`
+	TrackingNumber      *string `json:"tracking_number,omitempty"`
+	ShippingEvidenceURL *string `json:"shipping_evidence_url,omitempty"`
 }
 
 type UpdatePaymentStatusRequest struct {
@@ -96,6 +98,8 @@ type OrderResponse struct {
 	PaymentQRString     string              `json:"payment_qr_string,omitempty"`
 	PaymentURL          string              `json:"payment_url,omitempty"`
 	PaymentExpiry       string              `json:"payment_expiry,omitempty"`
+	TrackingNumber      string              `json:"tracking_number,omitempty"`
+	ShippingEvidenceURL string              `json:"shipping_evidence_url,omitempty"`
 	PaymentProofURL     string              `json:"payment_proof_url,omitempty"`
 	InvoiceURL          string              `json:"invoice_url,omitempty"`
 	CustomerConfirmedAt string              `json:"customer_confirmed_at,omitempty"`
@@ -146,6 +150,12 @@ func ToOrderResponse(o *entity.Order) OrderResponse {
 	}
 	if o.PaymentExpiry != nil {
 		resp.PaymentExpiry = *o.PaymentExpiry
+	}
+	if o.TrackingNumber != nil {
+		resp.TrackingNumber = *o.TrackingNumber
+	}
+	if o.ShippingEvidenceURL != nil {
+		resp.ShippingEvidenceURL = *o.ShippingEvidenceURL
 	}
 	if o.PaymentProofURL != nil {
 		resp.PaymentProofURL = *o.PaymentProofURL
