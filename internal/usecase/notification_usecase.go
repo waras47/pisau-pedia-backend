@@ -173,3 +173,10 @@ func (u *NotificationUsecase) NotifyProductLowStock(ctx context.Context, product
 		fmt.Sprintf("Stok %s tinggal %d unit", product.Name, product.Stock),
 		ptr(product.ID), ptr("/pisaupedia/admin/products"))
 }
+
+func (u *NotificationUsecase) NotifyReviewCreated(ctx context.Context, review *entity.Review) error {
+	return u.create(ctx, entity.NotificationModuleReview, "review_created",
+		"Review Baru",
+		fmt.Sprintf("Review baru dari %s (⭐%d)", review.CustomerName, review.Rating),
+		ptr(review.ID), ptr("/pisaupedia/admin/reviews"))
+}

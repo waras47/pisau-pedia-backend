@@ -20,6 +20,7 @@ type ProductListInput struct {
 	CategorySlug string
 	Search       string
 	Sort         string
+	Badge        string
 }
 
 type ProductListResult struct {
@@ -90,6 +91,7 @@ func (u *ProductUsecase) ListProducts(ctx context.Context, input ProductListInpu
 		CategorySlug: input.CategorySlug,
 		Search:       input.Search,
 		Sort:         input.Sort,
+		Badge:        input.Badge,
 	}
 
 	products, total, err := u.productRepo.FindAll(ctx, filter)

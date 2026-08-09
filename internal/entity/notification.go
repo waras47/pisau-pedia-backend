@@ -9,6 +9,7 @@ const (
 	NotificationModuleOrder    NotificationModule = "order"
 	NotificationModuleCustomer NotificationModule = "customer"
 	NotificationModuleService  NotificationModule = "service"
+	NotificationModuleReview   NotificationModule = "review"
 )
 
 type Notification struct {

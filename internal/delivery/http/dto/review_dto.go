@@ -6,13 +6,12 @@ import (
 )
 
 type CreateReviewRequest struct {
-	// ProductSlug is optional — omit it for a "shop review" about the
-	// store itself rather than a specific product.
-	ProductSlug   string  `json:"product_slug" validate:"omitempty"`
-	CustomerName  string  `json:"customer_name" validate:"required,min=2"`
-	CustomerEmail *string `json:"customer_email" validate:"omitempty,email"`
-	Rating        uint    `json:"rating" validate:"required,min=1,max=5"`
-	Content       string  `json:"content" validate:"required,min=5"`
+	ProductSlug   string   `json:"product_slug" validate:"omitempty"`
+	CustomerName  string   `json:"customer_name" validate:"required,min=2"`
+	CustomerEmail *string  `json:"customer_email" validate:"omitempty,email"`
+	Rating        uint     `json:"rating" validate:"required,min=1,max=5"`
+	Content       string   `json:"content" validate:"required,min=5"`
+	Photos        []string `json:"photos" validate:"omitempty,max=5"`
 }
 
 func (r CreateReviewRequest) ToInput() usecase.CreateReviewInput {
@@ -22,6 +21,7 @@ func (r CreateReviewRequest) ToInput() usecase.CreateReviewInput {
 		CustomerEmail: r.CustomerEmail,
 		Rating:        r.Rating,
 		Content:       r.Content,
+		Photos:        r.Photos,
 	}
 }
 
@@ -29,12 +29,13 @@ func (r CreateReviewRequest) ToInput() usecase.CreateReviewInput {
 // review collected offline). Unlike the public CreateReviewRequest, it may
 // set the initial status instead of always starting "pending".
 type AdminCreateReviewRequest struct {
-	ProductSlug   string  `json:"product_slug" validate:"omitempty"`
-	CustomerName  string  `json:"customer_name" validate:"required,min=2"`
-	CustomerEmail *string `json:"customer_email" validate:"omitempty,email"`
-	Rating        uint    `json:"rating" validate:"required,min=1,max=5"`
-	Content       string  `json:"content" validate:"required,min=5"`
-	Status        string  `json:"status" validate:"omitempty,oneof=pending approved rejected"`
+	ProductSlug   string   `json:"product_slug" validate:"omitempty"`
+	CustomerName  string   `json:"customer_name" validate:"required,min=2"`
+	CustomerEmail *string  `json:"customer_email" validate:"omitempty,email"`
+	Rating        uint     `json:"rating" validate:"required,min=1,max=5"`
+	Content       string   `json:"content" validate:"required,min=5"`
+	Photos        []string `json:"photos" validate:"omitempty,max=5"`
+	Status        string   `json:"status" validate:"omitempty,oneof=pending approved rejected"`
 }
 
 func (r AdminCreateReviewRequest) ToInput() usecase.CreateReviewInput {
@@ -44,6 +45,7 @@ func (r AdminCreateReviewRequest) ToInput() usecase.CreateReviewInput {
 		CustomerEmail: r.CustomerEmail,
 		Rating:        r.Rating,
 		Content:       r.Content,
+		Photos:        r.Photos,
 		Status:        entity.ReviewStatus(r.Status),
 	}
 }
@@ -74,15 +76,16 @@ func (r UpdateReviewRequest) ToInput() usecase.UpdateReviewInput {
 }
 
 type ReviewResponse struct {
-	ID            string `json:"id"`
-	ProductName   string `json:"product_name,omitempty"`
-	ProductSlug   string `json:"product_slug,omitempty"`
-	CustomerName  string `json:"customer_name"`
-	CustomerEmail string `json:"customer_email,omitempty"`
-	Rating        uint   `json:"rating"`
-	Content       string `json:"content"`
-	Status        string `json:"status"`
-	CreatedAt     string `json:"created_at"`
+	ID            string   `json:"id"`
+	ProductName   string   `json:"product_name,omitempty"`
+	ProductSlug   string   `json:"product_slug,omitempty"`
+	CustomerName  string   `json:"customer_name"`
+	CustomerEmail string   `json:"customer_email,omitempty"`
+	Rating        uint     `json:"rating"`
+	Content       string   `json:"content"`
+	Photos        []string `json:"photos,omitempty"`
+	Status        string   `json:"status"`
+	CreatedAt     string   `json:"created_at"`
 }
 
 func ToReviewResponse(r *entity.Review) ReviewResponse {
@@ -91,6 +94,7 @@ func ToReviewResponse(r *entity.Review) ReviewResponse {
 		CustomerName: r.CustomerName,
 		Rating:       r.Rating,
 		Content:      r.Content,
+		Photos:       r.Photos,
 		Status:       string(r.Status),
 		CreatedAt:    r.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}

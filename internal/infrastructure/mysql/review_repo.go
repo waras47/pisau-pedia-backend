@@ -95,8 +95,8 @@ func (r *reviewRepository) FindByID(ctx context.Context, id string) (*entity.Rev
 
 func (r *reviewRepository) Create(ctx context.Context, review *entity.Review) error {
 	_, err := r.db.NamedExecContext(ctx, `
-		INSERT INTO reviews (id, product_id, customer_name, customer_email, rating, content, status)
-		VALUES (:id, :product_id, :customer_name, :customer_email, :rating, :content, :status)
+		INSERT INTO reviews (id, product_id, customer_name, customer_email, rating, content, photos, status)
+		VALUES (:id, :product_id, :customer_name, :customer_email, :rating, :content, :photos, :status)
 	`, review)
 	return err
 }
@@ -104,9 +104,9 @@ func (r *reviewRepository) Create(ctx context.Context, review *entity.Review) er
 func (r *reviewRepository) Update(ctx context.Context, review *entity.Review) error {
 	_, err := r.db.ExecContext(ctx, `
 		UPDATE reviews
-		SET customer_name = ?, customer_email = ?, rating = ?, content = ?, status = ?
+		SET customer_name = ?, customer_email = ?, rating = ?, content = ?, photos = ?, status = ?
 		WHERE id = ?
-	`, review.CustomerName, review.CustomerEmail, review.Rating, review.Content, review.Status, review.ID)
+	`, review.CustomerName, review.CustomerEmail, review.Rating, review.Content, review.Photos, review.Status, review.ID)
 	return err
 }
 

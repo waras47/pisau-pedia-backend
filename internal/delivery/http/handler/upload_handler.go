@@ -58,6 +58,36 @@ func (h *UploadHandler) UploadImage(c echo.Context) error {
 	return response.Success(c, http.StatusOK, "Image uploaded", map[string]string{"url": url})
 }
 
+func (h *UploadHandler) UploadReviewPhoto(c echo.Context) error {
+	fileHeader, err := c.FormFile("image")
+	if err != nil {
+		return response.Error(c, http.StatusBadRequest, "missing image file", nil)
+	}
+	if fileHeader.Size > maxUploadSize {
+		return response.Error(c, http.StatusBadRequest, "image too large (max 5MB)", nil)
+	}
+	contentType := fileHeader.Header.Get("Content-Type")
+	if !allowedImageTypes[contentType] {
+		return response.Error(c, http.StatusUnprocessableEntity, "unsupported image type", nil)
+	}
+
+	src, err := fileHeader.Open()
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, "failed to read file", nil)
+	}
+	defer src.Close()
+
+	ext := map[string]string{"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}[contentType]
+	key := fmt.Sprintf("reviews/%s%s", uuid.New().String(), ext)
+
+	url, err := h.storage.UploadImage(c.Request().Context(), key, src, fileHeader.Size, contentType)
+	if err != nil {
+		return response.Error(c, http.StatusInternalServerError, "failed to upload image", nil)
+	}
+
+	return response.Success(c, http.StatusOK, "Review photo uploaded", map[string]string{"url": url})
+}
+
 // UploadPaymentProof lets a customer attach a receipt/screenshot to their own
 // order after checkout — part of the manual/static payment flow (no
 // automated gateway confirms payment for us). Public like GetByID: the order

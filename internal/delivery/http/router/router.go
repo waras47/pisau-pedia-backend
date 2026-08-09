@@ -27,6 +27,7 @@ type Dependencies struct {
 	SearchHandler         *handler.SearchHandler
 	CollectionHandler     *handler.CollectionHandler
 	ConfiguratorHandler   *handler.ConfiguratorHandler
+	SitePromoHandler      *handler.SitePromoHandler
 }
 
 func Register(e *echo.Echo, deps Dependencies) {
@@ -72,6 +73,7 @@ func Register(e *echo.Echo, deps Dependencies) {
 	v1.POST("/service-requests", deps.ServiceRequestHandler.Create)
 	v1.GET("/reviews", deps.ReviewHandler.ListPublic)
 	v1.POST("/reviews", deps.ReviewHandler.Create)
+	v1.POST("/reviews/upload-photo", deps.UploadHandler.UploadReviewPhoto)
 	v1.GET("/configurator/shapes", deps.ConfiguratorHandler.ListShapes)
 	v1.GET("/configurator/blades", deps.ConfiguratorHandler.ListBlades)
 	v1.GET("/configurator/handles", deps.ConfiguratorHandler.ListHandles)
@@ -79,6 +81,7 @@ func Register(e *echo.Echo, deps Dependencies) {
 
 	v1.POST("/coupons/validate", deps.CouponHandler.Validate)
 	v1.GET("/coupons/promo-popup", deps.CouponHandler.GetPromoPopup)
+	v1.GET("/site-promos/active", deps.SitePromoHandler.GetActive)
 	v1.POST("/newsletter/subscribe", deps.NewsletterHandler.Subscribe)
 	v1.GET("/shipping/destinations", deps.ShippingHandler.SearchDestinations)
 	v1.POST("/shipping/cost", deps.ShippingHandler.CalculateCost)
@@ -159,6 +162,11 @@ func Register(e *echo.Echo, deps Dependencies) {
 	cfgAdmin.GET("/accessories/:id", deps.ConfiguratorHandler.GetAccessory)
 	cfgAdmin.PATCH("/accessories/:id", deps.ConfiguratorHandler.UpdateAccessory)
 	cfgAdmin.DELETE("/accessories/:id", deps.ConfiguratorHandler.DeleteAccessory)
+
+	admin.GET("/site-promos", deps.SitePromoHandler.List)
+	admin.POST("/site-promos", deps.SitePromoHandler.Create)
+	admin.PATCH("/site-promos/:id", deps.SitePromoHandler.Update)
+	admin.DELETE("/site-promos/:id", deps.SitePromoHandler.Delete)
 
 	admin.GET("/search", deps.SearchHandler.Global)
 }

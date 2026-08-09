@@ -35,6 +35,10 @@ func (r *productRepository) buildListFilter(filter repository.ProductFilter) (st
 		conditions = append(conditions, "p.name LIKE ?")
 		args = append(args, "%"+filter.Search+"%")
 	}
+	if filter.Badge != "" {
+		conditions = append(conditions, "p.badge = ?")
+		args = append(args, filter.Badge)
+	}
 
 	return strings.Join(conditions, " AND "), args
 }

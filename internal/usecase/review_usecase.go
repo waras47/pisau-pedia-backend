@@ -18,9 +18,8 @@ type CreateReviewInput struct {
 	CustomerEmail *string
 	Rating        uint
 	Content       string
-	// Status is only ever set by the admin-create path (public review
-	// submission never sets it) — empty means "pending".
-	Status entity.ReviewStatus
+	Photos        []string
+	Status        entity.ReviewStatus
 }
 
 // UpdateReviewInput fields are pointers so admin edits can be partial —
@@ -50,12 +49,13 @@ type ReviewListResult struct {
 }
 
 type ReviewUsecase struct {
-	reviewRepo  repository.ReviewRepository
-	productRepo repository.ProductRepository
+	reviewRepo          repository.ReviewRepository
+	productRepo         repository.ProductRepository
+	notificationUsecase *NotificationUsecase
 }
 
-func NewReviewUsecase(reviewRepo repository.ReviewRepository, productRepo repository.ProductRepository) *ReviewUsecase {
-	return &ReviewUsecase{reviewRepo: reviewRepo, productRepo: productRepo}
+func NewReviewUsecase(reviewRepo repository.ReviewRepository, productRepo repository.ProductRepository, notificationUsecase *NotificationUsecase) *ReviewUsecase {
+	return &ReviewUsecase{reviewRepo: reviewRepo, productRepo: productRepo, notificationUsecase: notificationUsecase}
 }
 
 func (u *ReviewUsecase) CreateReview(ctx context.Context, input CreateReviewInput) (*entity.Review, error) {
@@ -86,15 +86,17 @@ func (u *ReviewUsecase) CreateReview(ctx context.Context, input CreateReviewInpu
 		CustomerEmail: input.CustomerEmail,
 		Rating:        input.Rating,
 		Content:       input.Content,
+		Photos:        entity.StringSlice(input.Photos),
 		Status:        status,
 	}
 	if err := u.reviewRepo.Create(ctx, review); err != nil {
 		return nil, err
 	}
 
-	// Only ever matters when an admin creates a review directly as
-	// "approved" — public submissions always start pending and don't move
-	// the needle here. Shop reviews have no product to recompute stats for.
+	if u.notificationUsecase != nil {
+		_ = u.notificationUsecase.NotifyReviewCreated(ctx, review)
+	}
+
 	if review.ProductID != nil {
 		stats, err := u.reviewRepo.GetApprovedStatsByProduct(ctx, *review.ProductID)
 		if err != nil {

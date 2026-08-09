@@ -12,6 +12,7 @@ type ProductFilter struct {
 	CategorySlug string
 	Search       string
 	Sort         string
+	Badge        string
 }
 
 type CategoryStockPoint struct {

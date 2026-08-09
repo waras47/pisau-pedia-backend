@@ -17,29 +17,52 @@ import (
 )
 
 type ProductHandler struct {
-	productUsecase *usecase.ProductUsecase
+	productUsecase   *usecase.ProductUsecase
+	sitePromoUsecase *usecase.SitePromoUsecase
 }
 
-func NewProductHandler(productUsecase *usecase.ProductUsecase) *ProductHandler {
-	return &ProductHandler{productUsecase: productUsecase}
+func NewProductHandler(productUsecase *usecase.ProductUsecase, sitePromoUsecase *usecase.SitePromoUsecase) *ProductHandler {
+	return &ProductHandler{productUsecase: productUsecase, sitePromoUsecase: sitePromoUsecase}
 }
 
 func (h *ProductHandler) List(c echo.Context) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	perPage, _ := strconv.Atoi(c.QueryParam("per_page"))
 
-	result, err := h.productUsecase.ListProducts(c.Request().Context(), usecase.ProductListInput{
+	ctx := c.Request().Context()
+	result, err := h.productUsecase.ListProducts(ctx, usecase.ProductListInput{
 		Page:         page,
 		PerPage:      perPage,
 		CategorySlug: c.QueryParam("category"),
 		Search:       c.QueryParam("search"),
 		Sort:         c.QueryParam("sort"),
+		Badge:        c.QueryParam("badge"),
 	})
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, "failed to list products", nil)
 	}
 
-	return response.SuccessPaginated(c, http.StatusOK, dto.ToProductListItems(result.Products), response.Meta{
+	items := dto.ToProductListItems(result.Products)
+	if promo, _ := h.sitePromoUsecase.GetActive(ctx); promo != nil {
+		promoSet := make(map[string]struct{}, len(promo.ProductIDs))
+		for _, pid := range promo.ProductIDs {
+			promoSet[pid] = struct{}{}
+		}
+		for i := range items {
+			if !promo.ApplyToAll {
+				if _, ok := promoSet[items[i].ID]; !ok {
+					continue
+				}
+			}
+			if items[i].CompareAtPrice == nil {
+				original := items[i].Price
+				items[i].CompareAtPrice = &original
+			}
+			items[i].Price = usecase.ApplyPromoDiscount(items[i].Price, promo.DiscountPercent)
+		}
+	}
+
+	return response.SuccessPaginated(c, http.StatusOK, items, response.Meta{
 		Page:       result.Page,
 		PerPage:    result.PerPage,
 		Total:      result.Total,
@@ -48,14 +71,36 @@ func (h *ProductHandler) List(c echo.Context) error {
 }
 
 func (h *ProductHandler) GetBySlug(c echo.Context) error {
-	product, err := h.productUsecase.GetProductBySlug(c.Request().Context(), c.Param("slug"))
+	ctx := c.Request().Context()
+	product, err := h.productUsecase.GetProductBySlug(ctx, c.Param("slug"))
 	if err != nil {
 		if errors.Is(err, repository.ErrProductNotFound) {
 			return response.Error(c, http.StatusNotFound, "product not found", nil)
 		}
 		return response.Error(c, http.StatusInternalServerError, "failed to get product", nil)
 	}
-	return response.Success(c, http.StatusOK, "OK", dto.ToProductDetailResponse(product))
+
+	resp := dto.ToProductDetailResponse(product)
+	if promo, _ := h.sitePromoUsecase.GetActive(ctx); promo != nil {
+		applies := promo.ApplyToAll
+		if !applies {
+			for _, pid := range promo.ProductIDs {
+				if pid == resp.ID {
+					applies = true
+					break
+				}
+			}
+		}
+		if applies {
+			if resp.CompareAtPrice == nil {
+				original := resp.Price
+				resp.CompareAtPrice = &original
+			}
+			resp.Price = usecase.ApplyPromoDiscount(resp.Price, promo.DiscountPercent)
+		}
+	}
+
+	return response.Success(c, http.StatusOK, "OK", resp)
 }
 
 func (h *ProductHandler) Create(c echo.Context) error {
