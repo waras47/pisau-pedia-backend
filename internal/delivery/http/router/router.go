@@ -31,6 +31,7 @@ type Dependencies struct {
 	SiteContentHandler    *handler.SiteContentHandler
 	PostCategoryHandler   *handler.PostCategoryHandler
 	PostHandler           *handler.PostHandler
+	PushHandler           *handler.PushHandler
 }
 
 func Register(e *echo.Echo, deps Dependencies) {
@@ -145,6 +146,10 @@ func Register(e *echo.Echo, deps Dependencies) {
 	admin.PATCH("/notifications/:id/read", deps.NotificationHandler.MarkAsRead)
 	admin.PATCH("/notifications/read-all", deps.NotificationHandler.MarkAllAsRead)
 	admin.DELETE("/notifications/:id", deps.NotificationHandler.Delete)
+
+	admin.GET("/push/vapid-key", deps.PushHandler.GetVAPIDKey)
+	admin.POST("/push/subscribe", deps.PushHandler.Subscribe)
+	admin.POST("/push/unsubscribe", deps.PushHandler.Unsubscribe)
 
 	admin.POST("/collections", deps.CollectionHandler.Create)
 	admin.PATCH("/collections/:id", deps.CollectionHandler.Update)

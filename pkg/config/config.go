@@ -65,6 +65,11 @@ type GoogleOAuthConfig struct {
 	RedirectURL  string
 }
 
+type VAPIDConfig struct {
+	PrivateKey string
+	PublicKey  string
+}
+
 type SMTPConfig struct {
 	Host     string
 	Port     int
@@ -83,6 +88,7 @@ type Config struct {
 	Qrisly         QrislyConfig
 	GoogleOAuth    GoogleOAuthConfig
 	SMTP           SMTPConfig
+	VAPID          VAPIDConfig
 	FrontendURL    string
 }
 
@@ -164,6 +170,10 @@ func Load() (*Config, error) {
 			Username: v.GetString("SMTP_USERNAME"),
 			Password: v.GetString("SMTP_PASSWORD"),
 			From:     v.GetString("SMTP_FROM"),
+		},
+		VAPID: VAPIDConfig{
+			PrivateKey: v.GetString("VAPID_PRIVATE_KEY"),
+			PublicKey:  v.GetString("VAPID_PUBLIC_KEY"),
 		},
 		FrontendURL: v.GetString("FRONTEND_URL"),
 	}

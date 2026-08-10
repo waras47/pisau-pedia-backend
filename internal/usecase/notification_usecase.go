@@ -5,9 +5,11 @@ import (
 	"fmt"
 
 	"github.com/google/uuid"
+	"github.com/rs/zerolog"
 
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/entity"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/internal/repository"
+	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/webpush"
 )
 
 type NotificationListInput struct {
@@ -25,15 +27,19 @@ type NotificationListResult struct {
 }
 
 type NotificationUsecase struct {
-	repo repository.NotificationRepository
+	repo    repository.NotificationRepository
+	pushRepo repository.PushSubscriptionRepository
+	pusher   *webpush.Pusher
+	frontURL string
+	log      zerolog.Logger
 }
 
-func NewNotificationUsecase(repo repository.NotificationRepository) *NotificationUsecase {
-	return &NotificationUsecase{repo: repo}
+func NewNotificationUsecase(repo repository.NotificationRepository, pushRepo repository.PushSubscriptionRepository, pusher *webpush.Pusher, frontURL string, log zerolog.Logger) *NotificationUsecase {
+	return &NotificationUsecase{repo: repo, pushRepo: pushRepo, pusher: pusher, frontURL: frontURL, log: log}
 }
 
 func (u *NotificationUsecase) create(ctx context.Context, module entity.NotificationModule, notifType, title, message string, referenceID, link *string) error {
-	return u.repo.Create(ctx, &entity.Notification{
+	err := u.repo.Create(ctx, &entity.Notification{
 		ID:          uuid.New().String(),
 		Module:      module,
 		Type:        notifType,
@@ -42,6 +48,50 @@ func (u *NotificationUsecase) create(ctx context.Context, module entity.Notifica
 		ReferenceID: referenceID,
 		Link:        link,
 	})
+	if err != nil {
+		return err
+	}
+
+	go u.sendPushToAdmins(title, message, link)
+	return nil
+}
+
+func (u *NotificationUsecase) sendPushToAdmins(title, message string, link *string) {
+	if u.pusher == nil || u.pushRepo == nil {
+		return
+	}
+	ctx := context.Background()
+	subs, err := u.pushRepo.FindAllAdmin(ctx)
+	if err != nil {
+		u.log.Error().Err(err).Msg("push: failed to fetch admin subscriptions")
+		return
+	}
+
+	pushURL := ""
+	if link != nil {
+		pushURL = u.frontURL + *link
+	}
+
+	payload := webpush.Payload{
+		Title: title,
+		Body:  message,
+		Icon:  u.frontURL + "/logo-pisaupedia.png",
+		URL:   pushURL,
+		Tag:   "pisaupedia-admin",
+	}
+
+	for _, sub := range subs {
+		if err := u.pusher.Send(webpush.Subscription{
+			Endpoint: sub.Endpoint,
+			P256dh:   sub.P256dh,
+			Auth:     sub.Auth,
+		}, payload); err != nil {
+			if webpush.IsGone(err) {
+				_ = u.pushRepo.DeleteByEndpoint(ctx, sub.Endpoint)
+			}
+			u.log.Warn().Err(err).Str("endpoint", sub.Endpoint[:40]).Msg("push: send failed")
+		}
+	}
 }
 
 func (u *NotificationUsecase) ListNotifications(ctx context.Context, input NotificationListInput) (*NotificationListResult, error) {

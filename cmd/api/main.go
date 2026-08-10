@@ -25,6 +25,7 @@ import (
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/rajaongkir"
 	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/storage"
 	pkgvalidator "github.com/pisaupediaprojek/pisau-pedia-backend/pkg/validator"
+	"github.com/pisaupediaprojek/pisau-pedia-backend/pkg/webpush"
 )
 
 func main() {
@@ -64,6 +65,7 @@ func main() {
 	couponRepo := mysql.NewCouponRepository(db)
 	newsletterRepo := mysql.NewNewsletterRepository(db)
 	notificationRepo := mysql.NewNotificationRepository(db)
+	pushSubRepo := mysql.NewPushSubscriptionRepository(db)
 
 	sitePromoRepo := mysql.NewSitePromoRepository(db)
 	siteContentRepo := mysql.NewSiteContentRepository(db)
@@ -76,8 +78,18 @@ func main() {
 	postRepo := mysql.NewPostRepository(db)
 	emailVerificationRepo := mysql.NewEmailVerificationRepository(db)
 
+	// Web Push
+	var pusher *webpush.Pusher
+	if cfg.VAPID.PrivateKey != "" && cfg.VAPID.PublicKey != "" {
+		var pushErr error
+		pusher, pushErr = webpush.New(cfg.VAPID.PrivateKey, cfg.VAPID.PublicKey, "mailto:pisaupedia@gmail.com")
+		if pushErr != nil {
+			log.Warn().Err(pushErr).Msg("web push disabled: invalid VAPID keys")
+		}
+	}
+
 	// Usecases
-	notificationUsecase := usecase.NewNotificationUsecase(notificationRepo)
+	notificationUsecase := usecase.NewNotificationUsecase(notificationRepo, pushSubRepo, pusher, cfg.FrontendURL, log)
 	googleOAuthClient := googleoauth.New(cfg.GoogleOAuth.ClientID, cfg.GoogleOAuth.ClientSecret, cfg.GoogleOAuth.RedirectURL)
 	mailService := mailer.New(cfg.SMTP)
 	authUsecase := usecase.NewAuthUsecase(userRepo, refreshTokenRepo, emailVerificationRepo, cfg.JWT, notificationUsecase, googleOAuthClient, mailService, cfg.FrontendURL)
@@ -126,6 +138,7 @@ func main() {
 	couponHandler := handler.NewCouponHandler(couponUsecase)
 	newsletterHandler := handler.NewNewsletterHandler(newsletterUsecase)
 	notificationHandler := handler.NewNotificationHandler(notificationUsecase)
+	pushHandler := handler.NewPushHandler(pushSubRepo, cfg.VAPID.PublicKey)
 	shippingHandler := handler.NewShippingHandler(shippingUsecase)
 	paymentHandler := handler.NewPaymentHandler(paymentUsecase)
 	configuratorHandler := handler.NewConfiguratorHandler(configuratorUsecase)
@@ -169,6 +182,7 @@ func main() {
 		SiteContentHandler:    siteContentHandler,
 		PostCategoryHandler:   postCategoryHandler,
 		PostHandler:           postHandler,
+		PushHandler:           pushHandler,
 	})
 
 	go runExpiredOrderSweep(orderUsecase, log)
