@@ -49,6 +49,7 @@ type ProductInput struct {
 	Name             string
 	Slug             string
 	Description      *string
+	DescriptionEN    *string
 	CareInstructions *string
 	Price            int64
 	CompareAtPrice   *int64
@@ -143,6 +144,7 @@ func (u *ProductUsecase) CreateProduct(ctx context.Context, input ProductInput) 
 		Name:             input.Name,
 		Slug:             slug,
 		Description:      input.Description,
+		DescriptionEN:    input.DescriptionEN,
 		CareInstructions: input.CareInstructions,
 		Price:            input.Price,
 		CompareAtPrice:   input.CompareAtPrice,
@@ -194,6 +196,9 @@ func (u *ProductUsecase) UpdateProduct(ctx context.Context, id string, input Pro
 	}
 	if input.Description != nil {
 		product.Description = input.Description
+	}
+	if input.DescriptionEN != nil {
+		product.DescriptionEN = input.DescriptionEN
 	}
 	if input.CareInstructions != nil {
 		product.CareInstructions = input.CareInstructions

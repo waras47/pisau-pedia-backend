@@ -17,6 +17,7 @@ type Product struct {
 	Name             string    `db:"name"`
 	Slug             string    `db:"slug"`
 	Description      *string   `db:"description"`
+	DescriptionEN    *string   `db:"description_en"`
 	CareInstructions *string   `db:"care_instructions"`
 	Price            int64     `db:"price"`
 	CompareAtPrice   *int64    `db:"compare_at_price"`

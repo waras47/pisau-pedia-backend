@@ -218,8 +218,8 @@ func (r *productRepository) Create(ctx context.Context, product *entity.Product)
 	defer tx.Rollback()
 
 	_, err = tx.NamedExecContext(ctx, `
-		INSERT INTO products (id, category_id, name, slug, description, care_instructions, price, compare_at_price, currency, maker, badge, stock, weight, is_active)
-		VALUES (:id, :category_id, :name, :slug, :description, :care_instructions, :price, :compare_at_price, :currency, :maker, :badge, :stock, :weight, :is_active)
+		INSERT INTO products (id, category_id, name, slug, description, description_en, care_instructions, price, compare_at_price, currency, maker, badge, stock, weight, is_active)
+		VALUES (:id, :category_id, :name, :slug, :description, :description_en, :care_instructions, :price, :compare_at_price, :currency, :maker, :badge, :stock, :weight, :is_active)
 	`, product)
 	if err != nil {
 		return err
@@ -273,6 +273,7 @@ func (r *productRepository) Update(ctx context.Context, product *entity.Product)
 			category_id = :category_id,
 			name = :name,
 			description = :description,
+			description_en = :description_en,
 			care_instructions = :care_instructions,
 			price = :price,
 			compare_at_price = :compare_at_price,

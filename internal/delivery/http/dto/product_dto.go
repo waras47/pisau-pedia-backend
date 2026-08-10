@@ -23,6 +23,7 @@ type CreateProductRequest struct {
 	Name             string                `json:"name" validate:"required,min=2"`
 	Slug             string                `json:"slug" validate:"omitempty"`
 	Description      *string               `json:"description"`
+	DescriptionEN    *string               `json:"description_en"`
 	CareInstructions *string               `json:"care_instructions"`
 	Price            int64                 `json:"price" validate:"required,min=0"`
 	CompareAtPrice   *int64                `json:"compare_at_price" validate:"omitempty,min=0"`
@@ -39,6 +40,7 @@ type UpdateProductRequest struct {
 	CategoryID       *string               `json:"category_id" validate:"omitempty,uuid"`
 	Name             string                `json:"name" validate:"omitempty,min=2"`
 	Description      *string               `json:"description"`
+	DescriptionEN    *string               `json:"description_en"`
 	CareInstructions *string               `json:"care_instructions"`
 	Price            int64                 `json:"price" validate:"omitempty,min=0"`
 	CompareAtPrice   *int64                `json:"compare_at_price" validate:"omitempty,min=0"`
@@ -73,6 +75,7 @@ func (r CreateProductRequest) ToInput() usecase.ProductInput {
 		Name:             r.Name,
 		Slug:             r.Slug,
 		Description:      r.Description,
+		DescriptionEN:    r.DescriptionEN,
 		CareInstructions: r.CareInstructions,
 		Price:            r.Price,
 		CompareAtPrice:   r.CompareAtPrice,
@@ -97,6 +100,7 @@ func (r UpdateProductRequest) ToInput() usecase.ProductInput {
 		CategoryID:       r.CategoryID,
 		Name:             r.Name,
 		Description:      r.Description,
+		DescriptionEN:    r.DescriptionEN,
 		CareInstructions: r.CareInstructions,
 		Price:            r.Price,
 		CompareAtPrice:   r.CompareAtPrice,
@@ -147,6 +151,7 @@ type ProductAngleImagesResponse struct {
 type ProductDetailResponse struct {
 	ProductListItemResponse
 	Description      string                     `json:"description,omitempty"`
+	DescriptionEN    string                     `json:"description_en,omitempty"`
 	CareInstructions string                     `json:"care_instructions,omitempty"`
 	Images           []string                   `json:"images"`
 	AngleImages      ProductAngleImagesResponse `json:"angle_images"`
@@ -194,6 +199,9 @@ func ToProductDetailResponse(p *entity.Product) ProductDetailResponse {
 	resp := ProductDetailResponse{ProductListItemResponse: toProductListItem(p)}
 	if p.Description != nil {
 		resp.Description = *p.Description
+	}
+	if p.DescriptionEN != nil {
+		resp.DescriptionEN = *p.DescriptionEN
 	}
 	if p.CareInstructions != nil {
 		resp.CareInstructions = *p.CareInstructions
