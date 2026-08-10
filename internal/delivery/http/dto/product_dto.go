@@ -28,7 +28,7 @@ type CreateProductRequest struct {
 	Price            int64                 `json:"price" validate:"required,min=0"`
 	CompareAtPrice   *int64                `json:"compare_at_price" validate:"omitempty,min=0"`
 	Maker            *string               `json:"maker"`
-	Badge            *string               `json:"badge" validate:"omitempty,oneof=new sale sold-out"`
+	Badge            *string               `json:"badge" validate:"omitempty,oneof=new sold-out"`
 	Stock            *uint                 `json:"stock" validate:"omitempty,min=0"`
 	Weight           *uint                 `json:"weight" validate:"omitempty,min=0"`
 	Images           []ProductImageRequest `json:"images" validate:"omitempty,dive"`
@@ -45,7 +45,7 @@ type UpdateProductRequest struct {
 	Price            int64                 `json:"price" validate:"omitempty,min=0"`
 	CompareAtPrice   *int64                `json:"compare_at_price" validate:"omitempty,min=0"`
 	Maker            *string               `json:"maker"`
-	Badge            *string               `json:"badge" validate:"omitempty,oneof=new sale sold-out"`
+	Badge            *string               `json:"badge" validate:"omitempty,oneof=new sold-out"`
 	Stock            *uint                 `json:"stock" validate:"omitempty,min=0"`
 	Weight           *uint                 `json:"weight" validate:"omitempty,min=0"`
 	IsActive         *bool                 `json:"is_active"`

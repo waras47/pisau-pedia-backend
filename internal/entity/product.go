@@ -6,7 +6,6 @@ type Badge string
 
 const (
 	BadgeNew     Badge = "new"
-	BadgeSale    Badge = "sale"
 	BadgeSoldOut Badge = "sold-out"
 )
 
