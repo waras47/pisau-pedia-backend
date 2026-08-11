@@ -34,6 +34,9 @@ type ProductRepository interface {
 	FindBySlug(ctx context.Context, slug string) (*entity.Product, error)
 	FindByID(ctx context.Context, id string) (*entity.Product, error)
 	ExistsBySlug(ctx context.Context, slug string) (bool, error)
+	// ExistsBySKU reports whether sku is already used by a product other
+	// than excludeID (pass "" to check with no exclusion, e.g. on create).
+	ExistsBySKU(ctx context.Context, sku string, excludeID string) (bool, error)
 	Create(ctx context.Context, product *entity.Product) error
 	Update(ctx context.Context, product *entity.Product) error
 	Delete(ctx context.Context, id string) error

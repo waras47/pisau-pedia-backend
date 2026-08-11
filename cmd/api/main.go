@@ -156,7 +156,7 @@ func main() {
 	uploadHandler := handler.NewUploadHandler(store, orderUsecase)
 
 	exchangeRateClient := exchangerate.New()
-	exchangeRateHandler := handler.NewExchangeRateHandler(exchangeRateClient)
+	exchangeRateHandler := handler.NewExchangeRateHandler(exchangeRateClient, siteContentUsecase)
 
 	router.Register(e, router.Dependencies{
 		JWTAuth:               jwtAuth,

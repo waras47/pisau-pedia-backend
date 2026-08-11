@@ -2,6 +2,7 @@ package usecase
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/uuid"
 
@@ -45,9 +46,12 @@ type ProductImageInput struct {
 }
 
 type ProductInput struct {
-	CategoryID       *string
-	Name             string
-	Slug             string
+	CategoryID *string
+	Name       string
+	Slug       string
+	// SKU is an optional manual override. If empty, CreateProduct generates
+	// one from category + specs + name (see GenerateSKU in sku.go).
+	SKU              string
 	Description      *string
 	DescriptionEN    *string
 	CareInstructions *string
@@ -125,6 +129,41 @@ func (u *ProductUsecase) GetProductBySlug(ctx context.Context, slug string) (*en
 	return product, nil
 }
 
+// categorySlugFor looks up a category's slug for SKU generation, returning
+// "" (falls back to the "GEN" code) if categoryID is nil or the lookup fails.
+func (u *ProductUsecase) categorySlugFor(ctx context.Context, categoryID *string) string {
+	if categoryID == nil {
+		return ""
+	}
+	cat, err := u.categoryRepo.FindByID(ctx, *categoryID)
+	if err != nil || cat == nil {
+		return ""
+	}
+	return cat.Slug
+}
+
+// resolveSKU returns the SKU to store: manualSKU (validated unique) if
+// non-empty, otherwise one generated from categorySlug + specs + name.
+// excludeID is the product's own ID on update ("" on create).
+func (u *ProductUsecase) resolveSKU(ctx context.Context, excludeID, manualSKU, categorySlug, name string, specs []ProductSpecInput) (string, error) {
+	existsFn := func(ctx context.Context, sku string) (bool, error) {
+		return u.productRepo.ExistsBySKU(ctx, sku, excludeID)
+	}
+
+	if sku := strings.ToUpper(strings.TrimSpace(manualSKU)); sku != "" {
+		exists, err := existsFn(ctx, sku)
+		if err != nil {
+			return "", err
+		}
+		if exists {
+			return "", ErrSKUAlreadyExists
+		}
+		return sku, nil
+	}
+
+	return GenerateSKU(ctx, categorySlug, name, specs, existsFn)
+}
+
 func (u *ProductUsecase) CreateProduct(ctx context.Context, input ProductInput) (*entity.Product, error) {
 	base := input.Slug
 	if base == "" {
@@ -138,11 +177,17 @@ func (u *ProductUsecase) CreateProduct(ctx context.Context, input ProductInput) 
 		return nil, err
 	}
 
+	sku, err := u.resolveSKU(ctx, "", input.SKU, u.categorySlugFor(ctx, input.CategoryID), input.Name, input.Specs)
+	if err != nil {
+		return nil, err
+	}
+
 	product := &entity.Product{
 		ID:               uuid.New().String(),
 		CategoryID:       input.CategoryID,
 		Name:             input.Name,
 		Slug:             slug,
+		SKU:              &sku,
 		Description:      input.Description,
 		DescriptionEN:    input.DescriptionEN,
 		CareInstructions: input.CareInstructions,
@@ -246,6 +291,23 @@ func (u *ProductUsecase) UpdateProduct(ctx context.Context, id string, input Pro
 			product.Highlights = append(product.Highlights, entity.ProductHighlight{ID: uuid.New().String(), Highlight: h})
 		}
 	}
+
+	// Only touch the SKU when the admin explicitly sets one, or when this
+	// product still has none (backfills it silently using whatever category/
+	// specs/name are in effect after the edits above) — never regenerate an
+	// SKU a product already has just because something else changed.
+	if input.SKU != "" || product.SKU == nil {
+		specsInput := make([]ProductSpecInput, len(product.Specs))
+		for i, s := range product.Specs {
+			specsInput[i] = ProductSpecInput{Label: s.Label, Value: s.Value}
+		}
+		sku, err := u.resolveSKU(ctx, product.ID, input.SKU, u.categorySlugFor(ctx, product.CategoryID), product.Name, specsInput)
+		if err != nil {
+			return nil, err
+		}
+		product.SKU = &sku
+	}
+
 	if err := u.productRepo.Update(ctx, product); err != nil {
 		return nil, err
 	}

@@ -210,6 +210,12 @@ func (r *productRepository) ExistsBySlug(ctx context.Context, slug string) (bool
 	return count > 0, err
 }
 
+func (r *productRepository) ExistsBySKU(ctx context.Context, sku string, excludeID string) (bool, error) {
+	var count int
+	err := r.db.GetContext(ctx, &count, `SELECT COUNT(1) FROM products WHERE sku = ? AND id != ?`, sku, excludeID)
+	return count > 0, err
+}
+
 func (r *productRepository) Create(ctx context.Context, product *entity.Product) error {
 	tx, err := r.db.BeginTxx(ctx, nil)
 	if err != nil {
@@ -218,8 +224,8 @@ func (r *productRepository) Create(ctx context.Context, product *entity.Product)
 	defer tx.Rollback()
 
 	_, err = tx.NamedExecContext(ctx, `
-		INSERT INTO products (id, category_id, name, slug, description, description_en, care_instructions, price, compare_at_price, currency, maker, badge, stock, weight, is_active)
-		VALUES (:id, :category_id, :name, :slug, :description, :description_en, :care_instructions, :price, :compare_at_price, :currency, :maker, :badge, :stock, :weight, :is_active)
+		INSERT INTO products (id, category_id, name, slug, sku, description, description_en, care_instructions, price, compare_at_price, currency, maker, badge, stock, weight, is_active)
+		VALUES (:id, :category_id, :name, :slug, :sku, :description, :description_en, :care_instructions, :price, :compare_at_price, :currency, :maker, :badge, :stock, :weight, :is_active)
 	`, product)
 	if err != nil {
 		return err
@@ -272,6 +278,7 @@ func (r *productRepository) Update(ctx context.Context, product *entity.Product)
 		UPDATE products SET
 			category_id = :category_id,
 			name = :name,
+			sku = :sku,
 			description = :description,
 			description_en = :description_en,
 			care_instructions = :care_instructions,

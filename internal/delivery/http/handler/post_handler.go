@@ -85,6 +85,23 @@ func NewPostHandler(u *usecase.PostUsecase) *PostHandler {
 	return &PostHandler{usecase: u}
 }
 
+// postPaginationMeta mirrors the page/per_page defaulting done inside
+// postRepository.FindAll, so the meta returned to the client matches what
+// was actually queried.
+func postPaginationMeta(page, perPage int, total int64) response.Meta {
+	if perPage <= 0 {
+		perPage = 10
+	}
+	if page <= 0 {
+		page = 1
+	}
+	totalPages := total / int64(perPage)
+	if total%int64(perPage) != 0 {
+		totalPages++
+	}
+	return response.Meta{Page: page, PerPage: perPage, Total: total, TotalPages: totalPages}
+}
+
 func (h *PostHandler) List(c echo.Context) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	perPage, _ := strconv.Atoi(c.QueryParam("per_page"))
@@ -101,11 +118,7 @@ func (h *PostHandler) List(c echo.Context) error {
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, "failed to list posts", nil)
 	}
-	return response.Success(c, http.StatusOK, "OK", map[string]interface{}{
-		"data":  dto.ToPostListResponse(posts),
-		"total": total,
-		"page":  filter.Page,
-	})
+	return response.SuccessPaginated(c, http.StatusOK, dto.ToPostListResponse(posts), postPaginationMeta(filter.Page, filter.PerPage, total))
 }
 
 func (h *PostHandler) PublicList(c echo.Context) error {
@@ -124,11 +137,7 @@ func (h *PostHandler) PublicList(c echo.Context) error {
 	if err != nil {
 		return response.Error(c, http.StatusInternalServerError, "failed to list posts", nil)
 	}
-	return response.Success(c, http.StatusOK, "OK", map[string]interface{}{
-		"data":  dto.ToPostListResponse(posts),
-		"total": total,
-		"page":  filter.Page,
-	})
+	return response.SuccessPaginated(c, http.StatusOK, dto.ToPostListResponse(posts), postPaginationMeta(filter.Page, filter.PerPage, total))
 }
 
 func (h *PostHandler) GetBySlug(c echo.Context) error {

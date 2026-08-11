@@ -22,6 +22,7 @@ type CreateProductRequest struct {
 	CategoryID       *string               `json:"category_id" validate:"omitempty,uuid"`
 	Name             string                `json:"name" validate:"required,min=2"`
 	Slug             string                `json:"slug" validate:"omitempty"`
+	SKU              string                `json:"sku" validate:"omitempty"`
 	Description      *string               `json:"description"`
 	DescriptionEN    *string               `json:"description_en"`
 	CareInstructions *string               `json:"care_instructions"`
@@ -39,6 +40,7 @@ type CreateProductRequest struct {
 type UpdateProductRequest struct {
 	CategoryID       *string               `json:"category_id" validate:"omitempty,uuid"`
 	Name             string                `json:"name" validate:"omitempty,min=2"`
+	SKU              string                `json:"sku" validate:"omitempty"`
 	Description      *string               `json:"description"`
 	DescriptionEN    *string               `json:"description_en"`
 	CareInstructions *string               `json:"care_instructions"`
@@ -74,6 +76,7 @@ func (r CreateProductRequest) ToInput() usecase.ProductInput {
 		CategoryID:       r.CategoryID,
 		Name:             r.Name,
 		Slug:             r.Slug,
+		SKU:              r.SKU,
 		Description:      r.Description,
 		DescriptionEN:    r.DescriptionEN,
 		CareInstructions: r.CareInstructions,
@@ -99,6 +102,7 @@ func (r UpdateProductRequest) ToInput() usecase.ProductInput {
 	input := usecase.ProductInput{
 		CategoryID:       r.CategoryID,
 		Name:             r.Name,
+		SKU:              r.SKU,
 		Description:      r.Description,
 		DescriptionEN:    r.DescriptionEN,
 		CareInstructions: r.CareInstructions,
@@ -125,6 +129,7 @@ type ProductListItemResponse struct {
 	ID             string  `json:"id"`
 	Name           string  `json:"name"`
 	Slug           string  `json:"slug"`
+	SKU            string  `json:"sku,omitempty"`
 	Price          int64   `json:"price"`
 	CompareAtPrice *int64  `json:"compare_at_price,omitempty"`
 	Currency       string  `json:"currency"`
@@ -171,6 +176,9 @@ func toProductListItem(p *entity.Product) ProductListItemResponse {
 		Weight:         p.Weight,
 		RatingAvg:      p.RatingAvg,
 		ReviewCount:    p.ReviewCount,
+	}
+	if p.SKU != nil {
+		resp.SKU = *p.SKU
 	}
 	if p.Image != nil {
 		resp.Image = *p.Image

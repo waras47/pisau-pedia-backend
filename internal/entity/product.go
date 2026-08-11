@@ -15,6 +15,7 @@ type Product struct {
 	CategoryName     *string   `db:"category_name"`
 	Name             string    `db:"name"`
 	Slug             string    `db:"slug"`
+	SKU              *string   `db:"sku"`
 	Description      *string   `db:"description"`
 	DescriptionEN    *string   `db:"description_en"`
 	CareInstructions *string   `db:"care_instructions"`

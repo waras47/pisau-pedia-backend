@@ -114,6 +114,9 @@ func (h *ProductHandler) Create(c echo.Context) error {
 
 	product, err := h.productUsecase.CreateProduct(c.Request().Context(), req.ToInput())
 	if err != nil {
+		if errors.Is(err, usecase.ErrSKUAlreadyExists) {
+			return response.Error(c, http.StatusConflict, "SKU already exists", nil)
+		}
 		return response.Error(c, http.StatusInternalServerError, "failed to create product", nil)
 	}
 	return response.Success(c, http.StatusCreated, "Product created", dto.ToProductDetailResponse(product))
@@ -132,6 +135,9 @@ func (h *ProductHandler) Update(c echo.Context) error {
 	if err != nil {
 		if errors.Is(err, repository.ErrProductNotFound) {
 			return response.Error(c, http.StatusNotFound, "product not found", nil)
+		}
+		if errors.Is(err, usecase.ErrSKUAlreadyExists) {
+			return response.Error(c, http.StatusConflict, "SKU already exists", nil)
 		}
 		return response.Error(c, http.StatusInternalServerError, "failed to update product", nil)
 	}
