@@ -52,6 +52,7 @@ func main() {
 	e.Use(appmw.Secure(cfg.App.Env == "production"))
 	e.Use(appmw.BodyLimit())
 	e.Use(appmw.CORS(cfg.FrontendURL, cfg.App.Env != "production"))
+	e.Use(appmw.GlobalRateLimiter())
 
 	// Repositories
 	userRepo := mysql.NewUserRepository(db)
