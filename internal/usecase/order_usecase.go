@@ -55,6 +55,12 @@ type CreateOrderInput struct {
 	PaymentType        string
 	PaymentChannel     string
 	Items              []OrderItemInput
+	// IsManual marks an order the admin recorded by hand (e.g. a WhatsApp/
+	// phone sale) purely for reporting — skips the RajaOngkir cost lookup
+	// (ManualShippingCost is used verbatim instead) and the payment
+	// gateway invoice, and is created already paid.
+	IsManual           bool
+	ManualShippingCost int64
 }
 
 type OrderListInput struct {
@@ -190,7 +196,9 @@ func (u *OrderUsecase) CreateOrder(ctx context.Context, input CreateOrderInput) 
 	// coupon zeroes it out.
 	var shippingCost int64
 	var shippingCourier, shippingService, shippingETD, destinationID *string
-	if input.DestinationID != "" && input.Courier != "" && input.Service != "" && u.shippingClient.Enabled() {
+	if input.IsManual {
+		shippingCost = input.ManualShippingCost
+	} else if input.DestinationID != "" && input.Courier != "" && input.Service != "" && u.shippingClient.Enabled() {
 		if totalWeight < minWeightGrams {
 			totalWeight = minWeightGrams
 		}
@@ -243,41 +251,49 @@ func (u *OrderUsecase) CreateOrder(ctx context.Context, input CreateOrderInput) 
 		Items:              items,
 	}
 
-	// Create the payment first so the instruction (payment_id, VA/QRIS, hosted
-	// URL) is persisted in the same insert as the order.
-	var customerPhone string
-	if input.CustomerPhone != nil {
-		customerPhone = *input.CustomerPhone
-	}
-	paymentItems := make([]PaymentItem, 0, len(items))
-	for _, it := range items {
-		paymentItems = append(paymentItems, PaymentItem{Name: it.ProductName, Price: it.Price, Quantity: it.Quantity})
-	}
+	if input.IsManual {
+		// Recorded by an admin as already paid (e.g. a WhatsApp order
+		// confirmed by bank transfer) — no invoice to generate.
+		order.Status = entity.OrderStatusProcessing
+		order.PaymentStatus = entity.PaymentStatusPaid
+		order.PaymentProvider = strPtr("manual")
+	} else {
+		// Create the payment first so the instruction (payment_id, VA/QRIS,
+		// hosted URL) is persisted in the same insert as the order.
+		var customerPhone string
+		if input.CustomerPhone != nil {
+			customerPhone = *input.CustomerPhone
+		}
+		paymentItems := make([]PaymentItem, 0, len(items))
+		for _, it := range items {
+			paymentItems = append(paymentItems, PaymentItem{Name: it.ProductName, Price: it.Price, Quantity: it.Quantity})
+		}
 
-	instruction, err := u.paymentGateway.CreateInvoice(ctx, CreateInvoiceInput{
-		ExternalID:     orderID,
-		Amount:         order.Total,
-		CustomerName:   order.CustomerName,
-		CustomerEmail:  order.CustomerEmail,
-		CustomerPhone:  customerPhone,
-		Description:    fmt.Sprintf("Pisau Pedia order — %d item(s)", len(items)),
-		PaymentType:    input.PaymentType,
-		PaymentChannel: input.PaymentChannel,
-		Items:          paymentItems,
-	})
-	if err != nil {
-		return nil, err
-	}
+		instruction, err := u.paymentGateway.CreateInvoice(ctx, CreateInvoiceInput{
+			ExternalID:     orderID,
+			Amount:         order.Total,
+			CustomerName:   order.CustomerName,
+			CustomerEmail:  order.CustomerEmail,
+			CustomerPhone:  customerPhone,
+			Description:    fmt.Sprintf("Pisau Pedia order — %d item(s)", len(items)),
+			PaymentType:    input.PaymentType,
+			PaymentChannel: input.PaymentChannel,
+			Items:          paymentItems,
+		})
+		if err != nil {
+			return nil, err
+		}
 
-	order.XenditInvoiceURL = &instruction.InvoiceURL
-	order.PaymentProvider = strPtr(instruction.Provider)
-	order.PaymentID = strPtrOrNil(instruction.PaymentID)
-	order.PaymentType = strPtrOrNil(input.PaymentType)
-	order.PaymentChannel = strPtrOrNil(input.PaymentChannel)
-	order.PaymentVANumber = strPtrOrNil(instruction.VANumber)
-	order.PaymentQRString = strPtrOrNil(instruction.QRString)
-	order.PaymentURL = strPtrOrNil(instruction.PaymentURL)
-	order.PaymentExpiry = strPtrOrNil(instruction.ExpiryTime)
+		order.XenditInvoiceURL = &instruction.InvoiceURL
+		order.PaymentProvider = strPtr(instruction.Provider)
+		order.PaymentID = strPtrOrNil(instruction.PaymentID)
+		order.PaymentType = strPtrOrNil(input.PaymentType)
+		order.PaymentChannel = strPtrOrNil(input.PaymentChannel)
+		order.PaymentVANumber = strPtrOrNil(instruction.VANumber)
+		order.PaymentQRString = strPtrOrNil(instruction.QRString)
+		order.PaymentURL = strPtrOrNil(instruction.PaymentURL)
+		order.PaymentExpiry = strPtrOrNil(instruction.ExpiryTime)
+	}
 
 	if err := u.orderRepo.Create(ctx, order); err != nil {
 		// A concurrent request with the same idempotency key won the race and

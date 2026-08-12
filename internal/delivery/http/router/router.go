@@ -106,6 +106,7 @@ func Register(e *echo.Echo, deps Dependencies) {
 
 	admin.POST("/uploads/image", deps.UploadHandler.UploadImage)
 
+	admin.POST("/orders", deps.OrderHandler.CreateManual)
 	admin.GET("/orders", deps.OrderHandler.List)
 	admin.GET("/orders/:id", deps.OrderHandler.GetByID)
 	admin.PATCH("/orders/:id/status", deps.OrderHandler.UpdateStatus)

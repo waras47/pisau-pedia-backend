@@ -54,6 +54,41 @@ func (r CreateOrderRequest) ToInput() usecase.CreateOrderInput {
 	return input
 }
 
+// CreateManualOrderRequest is for admin-recorded orders (e.g. a WhatsApp
+// sale) — created already paid, no payment gateway invoice or RajaOngkir
+// shipping lookup involved. See usecase.CreateOrderInput.IsManual.
+type CreateManualOrderRequest struct {
+	CustomerName       string                   `json:"customer_name" validate:"required,min=2"`
+	CustomerEmail      string                   `json:"customer_email" validate:"omitempty,email"`
+	CustomerPhone      *string                  `json:"customer_phone"`
+	ShippingAddress    string                   `json:"shipping_address" validate:"required"`
+	ShippingCity       string                   `json:"shipping_city" validate:"required"`
+	ShippingProvince   *string                  `json:"shipping_province"`
+	ShippingPostalCode string                   `json:"shipping_postal_code"`
+	ShippingCost       int64                    `json:"shipping_cost" validate:"omitempty,min=0"`
+	CouponCode         string                   `json:"coupon_code"`
+	Items              []CreateOrderItemRequest `json:"items" validate:"required,min=1,dive"`
+}
+
+func (r CreateManualOrderRequest) ToInput() usecase.CreateOrderInput {
+	input := usecase.CreateOrderInput{
+		CustomerName:       r.CustomerName,
+		CustomerEmail:      r.CustomerEmail,
+		CustomerPhone:      r.CustomerPhone,
+		ShippingAddress:    r.ShippingAddress,
+		ShippingCity:       r.ShippingCity,
+		ShippingProvince:   r.ShippingProvince,
+		ShippingPostalCode: r.ShippingPostalCode,
+		CouponCode:         r.CouponCode,
+		IsManual:           true,
+		ManualShippingCost: r.ShippingCost,
+	}
+	for _, i := range r.Items {
+		input.Items = append(input.Items, usecase.OrderItemInput{ProductSlug: i.ProductSlug, Quantity: i.Quantity})
+	}
+	return input
+}
+
 type UpdateOrderStatusRequest struct {
 	Status              string  `json:"status" validate:"required,oneof=pending processing ready_for_delivery delivered cancelled"`
 	TrackingNumber      *string `json:"tracking_number,omitempty"`

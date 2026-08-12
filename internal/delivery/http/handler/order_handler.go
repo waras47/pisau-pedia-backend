@@ -76,6 +76,31 @@ func (h *OrderHandler) Create(c echo.Context) error {
 	return response.Success(c, http.StatusCreated, "Order created", dto.ToOrderResponse(order))
 }
 
+// CreateManual lets an admin record an order taken outside the storefront
+// (e.g. WhatsApp) so it counts in reports — created already paid, no
+// payment gateway or shipping-cost lookup involved.
+func (h *OrderHandler) CreateManual(c echo.Context) error {
+	var req dto.CreateManualOrderRequest
+	if err := c.Bind(&req); err != nil {
+		return response.Error(c, http.StatusBadRequest, "invalid request body", nil)
+	}
+	if err := c.Validate(&req); err != nil {
+		return response.Error(c, http.StatusUnprocessableEntity, "validation failed", err.Error())
+	}
+
+	order, err := h.orderUsecase.CreateOrder(c.Request().Context(), req.ToInput())
+	if err != nil {
+		if errors.Is(err, usecase.ErrEmptyOrder) {
+			return response.Error(c, http.StatusUnprocessableEntity, "order must have at least one valid item", nil)
+		}
+		if errors.Is(err, usecase.ErrInsufficientStock) {
+			return response.Error(c, http.StatusConflict, err.Error(), nil)
+		}
+		return response.Error(c, http.StatusInternalServerError, "failed to create order", nil)
+	}
+	return response.Success(c, http.StatusCreated, "Order created", dto.ToOrderResponse(order))
+}
+
 func (h *OrderHandler) List(c echo.Context) error {
 	page, _ := strconv.Atoi(c.QueryParam("page"))
 	perPage, _ := strconv.Atoi(c.QueryParam("per_page"))
