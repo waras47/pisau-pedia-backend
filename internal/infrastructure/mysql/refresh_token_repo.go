@@ -46,9 +46,8 @@ func (r *refreshTokenRepository) FindByTokenHash(ctx context.Context, tokenHash 
 			user_id, 
 			token_hash, 
 			expires_at, 
-			revoked_at, 
-			created_at, 
-			updated_at 
+			revoked_at,
+			created_at
 	    FROM refresh_tokens
 		WHERE token_hash = ?
 	   `
