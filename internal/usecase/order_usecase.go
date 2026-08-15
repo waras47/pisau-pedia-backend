@@ -22,6 +22,11 @@ var (
 	ErrInsufficientStock = errors.New("insufficient stock")
 )
 
+// paymentDeadline is the fallback payment window used when the payment
+// gateway doesn't supply its own expiry (see CreateOrder). Matches the
+// frontend's hardcoded PAYMENT_DEADLINE_HOURS.
+const paymentDeadline = 12 * time.Hour
+
 type OrderItemInput struct {
 	ProductSlug string
 	Quantity    uint
@@ -292,7 +297,18 @@ func (u *OrderUsecase) CreateOrder(ctx context.Context, input CreateOrderInput) 
 		order.PaymentVANumber = strPtrOrNil(instruction.VANumber)
 		order.PaymentQRString = strPtrOrNil(instruction.QRString)
 		order.PaymentURL = strPtrOrNil(instruction.PaymentURL)
-		order.PaymentExpiry = strPtrOrNil(instruction.ExpiryTime)
+		// The current gateway (DummyGateway, manual/static payment) never
+		// returns an ExpiryTime, which used to leave payment_expiry NULL —
+		// ReleaseExpiredOrders explicitly skips NULL rows, so unpaid orders
+		// never expired and their stock reservation was held forever.
+		// Default to 12h, matching the frontend's own hardcoded countdown
+		// (PAYMENT_DEADLINE_HOURS in CheckoutSuccessContent.tsx) so the "Pesanan
+		// Dibatalkan" message it shows is actually true on the backend too.
+		expiryTime := instruction.ExpiryTime
+		if expiryTime == "" {
+			expiryTime = time.Now().Add(paymentDeadline).Format(time.RFC3339)
+		}
+		order.PaymentExpiry = strPtrOrNil(expiryTime)
 	}
 
 	if err := u.orderRepo.Create(ctx, order); err != nil {
