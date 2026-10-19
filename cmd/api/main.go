@@ -188,8 +188,9 @@ func main() {
 
 	go runExpiredOrderSweep(orderUsecase, log)
 
-	log.Info().Str("port", cfg.App.Port).Msg("starting server")
-	if err := e.Start(":" + cfg.App.Port); err != nil && err != http.ErrServerClosed {
+	addr := cfg.App.Host + ":" + cfg.App.Port
+	log.Info().Str("addr", addr).Msg("starting server")
+	if err := e.Start(addr); err != nil && err != http.ErrServerClosed {
 		log.Fatal().Err(err).Msg("server stopped")
 	}
 }

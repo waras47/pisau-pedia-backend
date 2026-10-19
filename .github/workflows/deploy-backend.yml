@@ -28,4 +28,9 @@ jobs:
         run: rsync -avz api "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:/opt/pisau-pedia-backend/api"
 
       - name: Restart pm2 process
-        run: ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" "pm2 restart pisaupedia-backend"
+        run: |
+          ssh "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "(pm2 restart pisaupedia-backend --update-env || \
+              pm2 start /opt/pisau-pedia-backend/start.sh --name pisaupedia-backend \
+                --cwd /opt/pisau-pedia-backend --interpreter bash) && \
+             pm2 save"

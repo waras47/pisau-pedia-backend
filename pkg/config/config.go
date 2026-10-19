@@ -10,6 +10,7 @@ import (
 
 type AppConfig struct {
 	Name  string
+	Host  string
 	Port  string
 	Env   string
 	Debug bool
@@ -117,6 +118,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		App: AppConfig{
 			Name:  v.GetString("APP_NAME"),
+			Host:  v.GetString("APP_HOST"),
 			Port:  v.GetString("APP_PORT"),
 			Env:   v.GetString("APP_ENV"),
 			Debug: v.GetBool("APP_DEBUG"),
