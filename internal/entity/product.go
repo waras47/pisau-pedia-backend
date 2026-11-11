@@ -19,6 +19,7 @@ type Product struct {
 	Description      *string   `db:"description"`
 	DescriptionEN    *string   `db:"description_en"`
 	CareInstructions *string   `db:"care_instructions"`
+	YoutubeURL       *string   `db:"youtube_url"`
 	Price            int64     `db:"price"`
 	CompareAtPrice   *int64    `db:"compare_at_price"`
 	Currency         string    `db:"currency"`

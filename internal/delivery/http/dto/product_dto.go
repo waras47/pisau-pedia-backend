@@ -26,6 +26,7 @@ type CreateProductRequest struct {
 	Description      *string               `json:"description"`
 	DescriptionEN    *string               `json:"description_en"`
 	CareInstructions *string               `json:"care_instructions"`
+	YoutubeURL       *string               `json:"youtube_url" validate:"omitempty,max=255"`
 	Price            int64                 `json:"price" validate:"required,min=0"`
 	CompareAtPrice   *int64                `json:"compare_at_price" validate:"omitempty,min=0"`
 	Maker            *string               `json:"maker"`
@@ -44,6 +45,7 @@ type UpdateProductRequest struct {
 	Description      *string               `json:"description"`
 	DescriptionEN    *string               `json:"description_en"`
 	CareInstructions *string               `json:"care_instructions"`
+	YoutubeURL       *string               `json:"youtube_url" validate:"omitempty,max=255"`
 	Price            int64                 `json:"price" validate:"omitempty,min=0"`
 	CompareAtPrice   *int64                `json:"compare_at_price" validate:"omitempty,min=0"`
 	Maker            *string               `json:"maker"`
@@ -80,6 +82,7 @@ func (r CreateProductRequest) ToInput() usecase.ProductInput {
 		Description:      r.Description,
 		DescriptionEN:    r.DescriptionEN,
 		CareInstructions: r.CareInstructions,
+		YoutubeURL:       r.YoutubeURL,
 		Price:            r.Price,
 		CompareAtPrice:   r.CompareAtPrice,
 		Maker:            r.Maker,
@@ -106,6 +109,7 @@ func (r UpdateProductRequest) ToInput() usecase.ProductInput {
 		Description:      r.Description,
 		DescriptionEN:    r.DescriptionEN,
 		CareInstructions: r.CareInstructions,
+		YoutubeURL:       r.YoutubeURL,
 		Price:            r.Price,
 		CompareAtPrice:   r.CompareAtPrice,
 		Maker:            r.Maker,
@@ -158,6 +162,7 @@ type ProductDetailResponse struct {
 	Description      string                     `json:"description,omitempty"`
 	DescriptionEN    string                     `json:"description_en,omitempty"`
 	CareInstructions string                     `json:"care_instructions,omitempty"`
+	YoutubeURL       string                     `json:"youtube_url,omitempty"`
 	Images           []string                   `json:"images"`
 	AngleImages      ProductAngleImagesResponse `json:"angle_images"`
 	Specs            []ProductSpecRequest       `json:"specs"`
@@ -213,6 +218,9 @@ func ToProductDetailResponse(p *entity.Product) ProductDetailResponse {
 	}
 	if p.CareInstructions != nil {
 		resp.CareInstructions = *p.CareInstructions
+	}
+	if p.YoutubeURL != nil {
+		resp.YoutubeURL = *p.YoutubeURL
 	}
 
 	resp.Images = make([]string, 0, len(p.Images))

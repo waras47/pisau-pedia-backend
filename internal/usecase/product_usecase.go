@@ -55,6 +55,7 @@ type ProductInput struct {
 	Description      *string
 	DescriptionEN    *string
 	CareInstructions *string
+	YoutubeURL       *string // nil = leave unchanged; "" = clear
 	Price            int64
 	CompareAtPrice   *int64
 	Maker            *string
@@ -191,6 +192,7 @@ func (u *ProductUsecase) CreateProduct(ctx context.Context, input ProductInput) 
 		Description:      input.Description,
 		DescriptionEN:    input.DescriptionEN,
 		CareInstructions: input.CareInstructions,
+		YoutubeURL:       normalizeYoutubeURL(input.YoutubeURL),
 		Price:            input.Price,
 		CompareAtPrice:   input.CompareAtPrice,
 		Currency:         "IDR",
@@ -247,6 +249,9 @@ func (u *ProductUsecase) UpdateProduct(ctx context.Context, id string, input Pro
 	}
 	if input.CareInstructions != nil {
 		product.CareInstructions = input.CareInstructions
+	}
+	if input.YoutubeURL != nil {
+		product.YoutubeURL = normalizeYoutubeURL(input.YoutubeURL)
 	}
 	if input.Price != 0 {
 		product.Price = input.Price
@@ -358,4 +363,18 @@ func (u *ProductUsecase) GetInventoryReport(ctx context.Context) (*InventoryRepo
 	}
 
 	return &InventoryReportResult{Summary: summary, Products: products}, nil
+}
+
+// normalizeYoutubeURL trims the admin-entered link and maps blank to NULL so
+// clearing the field removes the video. The storefront extracts the video ID
+// itself and never embeds the raw value.
+func normalizeYoutubeURL(v *string) *string {
+	if v == nil {
+		return nil
+	}
+	trimmed := strings.TrimSpace(*v)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
