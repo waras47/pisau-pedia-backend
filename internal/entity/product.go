@@ -21,6 +21,7 @@ type Product struct {
 	CareInstructions *string   `db:"care_instructions"`
 	YoutubeURL       *string   `db:"youtube_url"`
 	TiktokURL        *string   `db:"tiktok_url"`
+	InstagramURL     *string   `db:"instagram_url"`
 	Price            int64     `db:"price"`
 	CompareAtPrice   *int64    `db:"compare_at_price"`
 	Currency         string    `db:"currency"`
